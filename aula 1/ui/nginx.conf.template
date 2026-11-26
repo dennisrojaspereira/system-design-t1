@@ -1,0 +1,47 @@
+# Interface visual do encurtador (http://localhost:8090).
+# Serve a página e repassa as chamadas na mesma origem, sem CORS:
+#   /b/compose/...  -> encurtador do Compose (app1)
+#   /p/compose/...  -> Prometheus do Compose, somente leitura
+#   /b/k8s/... e /p/k8s/...  -> o mesmo lab rodando num cluster local, se houver
+#                              (portas K8S_APP_PORT e K8S_PROM_PORT desta máquina)
+# As variáveis ${...} são preenchidas pela imagem do nginx ao subir.
+
+# Resolve os nomes a cada requisição: a interface sobe mesmo se um destino não existir.
+resolver 127.0.0.11 valid=5s ipv6=off;
+
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+    add_header Cache-Control "no-store";
+    proxy_connect_timeout 2s;
+
+    location = /config.json {
+        default_type application/json;
+        return 200 '{"compose":{"grafana":${GRAFANA_PORT},"prom":${PROM_PORT}},"k8s":{"grafana":${K8S_GRAFANA_PORT},"prom":${K8S_PROM_PORT}}}';
+    }
+
+    location /b/compose/ {
+        set $up http://app1:8080;
+        rewrite ^/b/compose/(.*)$ /$1 break;
+        proxy_pass $up;
+    }
+    location /p/compose/ {
+        limit_except GET { deny all; }
+        set $up http://prometheus:9090;
+        rewrite ^/p/compose/(.*)$ /$1 break;
+        proxy_pass $up;
+    }
+
+    location /b/k8s/ {
+        set $up http://host.docker.internal:${K8S_APP_PORT};
+        rewrite ^/b/k8s/(.*)$ /$1 break;
+        proxy_pass $up;
+    }
+    location /p/k8s/ {
+        limit_except GET { deny all; }
+        set $up http://host.docker.internal:${K8S_PROM_PORT};
+        rewrite ^/p/k8s/(.*)$ /$1 break;
+        proxy_pass $up;
+    }
+}

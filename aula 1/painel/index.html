@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel do laboratório — Aula 01</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eef0f4; --border: #dcdfe6;
+    --text: #1b1f27; --muted: #5d6675; --accent: #2456d6; --accent-text: #ffffff;
+    --ok: #16794a; --warn: #a15c00; --bad: #c0352b; --idle: #8a93a3;
+    --console-bg: #12151b; --console-text: #d6dbe4; --console-dim: #8b95a7;
+    --radius: 10px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101319; --surface: #181c24; --surface-2: #212633; --border: #2c3342;
+      --text: #e6e9ef; --muted: #9aa4b5; --accent: #7aa2ff; --accent-text: #0d1220;
+      --ok: #4cc38a; --warn: #e5a23c; --bad: #f0786d; --idle: #6c7689;
+      --console-bg: #0b0d12;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  code, .mono { font-family: var(--mono); font-size: 13px; }
+
+  header { padding: 20px 24px 14px; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+  header h1 { font-size: 20px; margin: 0; line-height: 1.25; text-wrap: balance; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .pills { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--border); font-size: 13px; white-space: nowrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--idle); flex: none; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+  .dot.busy { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .dot.busy { animation: none; } }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 0 24px 40px; }
+  @media (min-width: 1180px) {
+    .layout { grid-template-columns: minmax(0, 1fr) minmax(380px, 40%); align-items: start; }
+    .side { position: sticky; top: 16px; }
+    .console { height: calc(100vh - 110px); }
+  }
+  @media (max-width: 640px) { header, .layout { padding-left: 16px; padding-right: 16px; } }
+
+  section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; margin-bottom: 20px; }
+  section > h2 { font-size: 16px; margin: 0 0 4px; }
+  section > .hint { color: var(--muted); font-size: 13px; margin: 0 0 14px; max-width: 70ch; }
+
+  button { font: inherit; font-size: 14px; cursor: pointer; border-radius: 7px; padding: 7px 13px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.danger { color: var(--bad); }
+  button.small { font-size: 12.5px; padding: 3px 9px; }
+
+  .labs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 12px; }
+  .lab { border: 1px solid var(--border); border-radius: 8px; padding: 13px; display: flex; flex-direction: column; gap: 6px; }
+  .lab.current { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .lab h3 { margin: 0; font-size: 15px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .lab h3 small { font-weight: 500; font-size: 12px; color: var(--accent); white-space: nowrap; }
+  .lab .arch { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .lab p { margin: 0; font-size: 13px; flex: 1; }
+  .lab button { align-self: flex-start; margin-top: 4px; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  label.field { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--muted); }
+  input, select, textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
+  input.num { width: 104px; font-family: var(--mono); font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; font-size: 13px; color: var(--muted); }
+  .chips button { font-family: var(--mono); font-size: 12px; padding: 4px 9px; border-radius: 999px; }
+  .cmd { margin-top: 12px; font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 7px 8px 7px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+  tr:first-child td { border-top: 0; }
+  td.svc { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+  td.svc .dot { display: inline-block; margin-right: 8px; }
+  td.st { color: var(--muted); font-size: 13px; }
+  td.acts { text-align: right; white-space: nowrap; }
+  td.acts button { margin-left: 5px; }
+  .tablewrap { overflow-x: auto; }
+
+  textarea#env { width: 100%; min-height: 190px; font-family: var(--mono); font-size: 13px; line-height: 1.55; resize: vertical; }
+
+  .systems { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; }
+  .sys { border: 1px solid var(--border); border-radius: 8px; padding: 13px; min-width: 0; }
+  .sys h3 { margin: 0 0 2px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .sys h3 span.when { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .sys p { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+  .sys dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 5px 10px; align-items: center; font-size: 13px; }
+  .sys dt { color: var(--muted); }
+  .sys dd { margin: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+  .sys dd.plain { font-family: inherit; font-size: 13px; grid-column: span 2; }
+
+  .side section { margin-bottom: 0; padding: 0; overflow: hidden; }
+  .console-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .console-head h2 { font-size: 14px; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .console { margin: 0; height: 420px; overflow: auto; background: var(--console-bg); color: var(--console-text);
+    font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 12px 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .console .c { color: var(--console-dim); } .console .h { color: #8fb4ff; font-weight: 600; }
+  .console .g { color: #6fd6a0; } .console .r { color: #ff8f85; }
+
+  #toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+    padding: 9px 16px; border-radius: 8px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 90vw; }
+  #toast.show { opacity: 1; }
+  .offline { display: none; margin: 0 24px 16px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--bad); color: var(--bad); background: var(--surface); }
+  .offline.show { display: block; }
+
+  /* ---------- modo guiado ---------- */
+  .modes { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--surface); }
+  .modes button { border: 0; border-radius: 0; background: transparent; padding: 5px 14px; font-size: 13px; }
+  .modes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  body[data-mode="guided"] #freeMode, body[data-mode="free"] #guided { display: none; }
+  .g-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .g-nav button { font-size: 12.5px; padding: 4px 11px; border-radius: 999px; }
+  .g-nav button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .g-bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-bottom: 16px; }
+  .g-bar div { height: 100%; background: var(--accent); transition: width .2s; }
+  .g-kicker { font-size: 12.5px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+  #guided h2 { font-size: 24px; line-height: 1.25; margin: 4px 0 8px; text-wrap: balance; }
+  .g-text { font-size: 16px; margin: 0 0 14px; max-width: 68ch; }
+  .g-box { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; max-width: 76ch; }
+  .g-box h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .g-box ul { margin: 0; padding-left: 20px; } .g-box li { margin: 3px 0; }
+  .g-warn { border-color: var(--warn); color: var(--warn); }
+  .g-status { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); min-height: 24px; margin-bottom: 12px; }
+  .g-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .g-actions button { font-size: 16px; padding: 11px 20px; }
+  .g-actions button.primary { min-width: 220px; }
+  .g-actions button.primary.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .g-actions .spacer { flex: 1; }
+  @media (max-width: 640px) { .g-actions button.primary { min-width: 0; flex: 1 1 100%; order: -1; } }
+
+  /* desenhos do modo guiado: fluxo de negócio e C4 */
+  .g-diag { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .g-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .g-tabs button { font-size: 13px; padding: 5px 12px; border-radius: 999px; }
+  .g-tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .g-diag h3 { margin: 0 0 2px; font-size: 15px; }
+  .g-note { margin: 0 0 10px; font-size: 14px; color: var(--muted); max-width: 76ch; }
+  .g-canvas { overflow-x: auto; }
+  .g-canvas svg { display: block; width: 100%; min-width: 640px; height: auto; font-family: inherit; }
+  .g-legend { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .g-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; border: 2px solid var(--border); margin-right: 5px; vertical-align: -1px; }
+  .g-legend i.novo { border-color: var(--accent); } .g-legend i.foco { border-color: var(--bad); } .g-legend i.dim { opacity: .35; }
+  .g-code { margin: 0; background: var(--console-bg); color: var(--console-text); border-radius: 8px; padding: 14px 16px;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55; overflow-x: auto; white-space: pre; tab-size: 4; }
+  .d-node rect, .d-node path { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+  .d-node path { fill: none; }
+  .d-node.ext rect { fill: var(--surface-2); stroke-dasharray: 5 4; }
+  .d-node.novo rect, .d-node.novo path { stroke: var(--accent); stroke-width: 2.5; }
+  .d-node.foco rect, .d-node.foco path { stroke: var(--bad); stroke-width: 3; }
+  .d-node.dim, .d-edge.dim { opacity: .3; }
+  .d-node text { fill: var(--text); font-size: 13px; font-weight: 600; text-anchor: middle; }
+  .d-node text.sub { fill: var(--muted); font-size: 11.5px; font-weight: 400; }
+  .d-node text.tag { fill: var(--accent); font-size: 11px; font-weight: 700; text-anchor: end; }
+  .d-edge line { stroke: var(--muted); stroke-width: 1.5; } .d-edge polygon { fill: var(--muted); }
+  .d-edge.novo line { stroke: var(--accent); stroke-width: 2.5; } .d-edge.novo polygon { fill: var(--accent); }
+  .d-edge.dash line { stroke-dasharray: 6 4; }
+  .d-label { fill: var(--text); font-size: 11.5px; text-anchor: middle; stroke: var(--surface); stroke-width: 5px; paint-order: stroke; stroke-linejoin: round; }
+  .d-frame rect { fill: none; stroke: var(--muted); stroke-dasharray: 7 5; stroke-width: 1.2; }
+  .d-frame text { fill: var(--muted); font-size: 12px; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Painel do laboratório</h1>
+    <p>System Design na Prática · Aula 01 — Encurtador de links</p>
+  </div>
+  <div class="pills">
+    <span class="modes" role="group" aria-label="Modo do painel">
+      <button id="modeGuided" aria-pressed="true">Guiado</button>
+      <button id="modeFree" aria-pressed="false">Livre</button>
+    </span>
+    <span class="pill"><span class="dot" id="labDot"></span><span id="labPill">Lab —</span></span>
+    <span class="pill"><span class="dot" id="jobDot"></span><span id="jobPill">Ocioso</span></span>
+  </div>
+</header>
+<div class="offline" id="offline">Sem resposta do painel. Ele ainda está rodando? Suba de novo com <code>make painel</code>.</div>
+
+<div class="layout">
+  <main>
+    <section id="guided">
+      <div class="g-nav" id="gNav"></div>
+      <div class="g-bar"><div id="gBar"></div></div>
+      <div class="g-kicker" id="gKicker"></div>
+      <h2 id="gTitle"></h2>
+      <p class="g-text" id="gText"></p>
+      <div class="cmd" id="gCmd" style="margin:0 0 14px"></div>
+      <div id="gBoxes"></div>
+      <div class="g-status" id="gStatus"></div>
+      <div class="g-actions">
+        <button id="gBack">← Voltar</button>
+        <button class="primary" id="gMain"></button>
+        <button id="gSkip">Pular</button>
+        <span class="spacer"></span>
+        <button class="danger" id="gStop" hidden>Parar carga</button>
+        <a id="gGrafana" target="_blank" rel="noopener">Abrir o Grafana ↗</a>
+      </div>
+
+      <div class="g-diag">
+        <div class="g-tabs" id="gTabs" role="group" aria-label="Desenho deste laboratório"></div>
+        <h3 id="gDiagTitle"></h3>
+        <p class="g-note" id="gDiagNote"></p>
+        <div class="g-canvas" id="gCanvas"></div>
+        <p class="g-legend" id="gLegend">
+          <span><i class="novo"></i>novidade deste lab</span>
+          <span><i class="foco"></i>peça em que este passo mexe</span>
+          <span><i class="dim"></i>ainda não participa</span>
+        </p>
+      </div>
+    </section>
+
+    <div id="freeMode">
+    <section>
+      <h2>1. Suba um laboratório</h2>
+      <p class="hint">Troca o <code>.env</code> pelo do lab e recria os containers. Os dados e o histórico de métricas são mantidos, então dá para comparar antes e depois no mesmo gráfico.</p>
+      <div class="labs" id="labs"></div>
+    </section>
+
+    <section>
+      <h2>2. Aplique carga</h2>
+      <p class="hint">Roda o k6 contra o estágio que está no ar. Acompanhe pelo <a id="grafanaLink" href="http://localhost:3000" target="_blank" rel="noopener">Grafana</a>.</p>
+      <div class="chips" id="presets"></div>
+      <div class="row">
+        <label class="field">Cenário
+          <select id="script">
+            <option value="read">read — redirects constantes</option>
+            <option value="ramp">ramp — rampa em degraus</option>
+            <option value="write">write — criação de links</option>
+            <option value="mixed">mixed — leitura + "criei e cliquei"</option>
+          </select>
+        </label>
+        <span class="row" id="vars"></span>
+        <button class="primary" id="loadBtn">Iniciar carga</button>
+        <button class="danger" id="stopBtn" disabled>Parar</button>
+      </div>
+      <div class="cmd" id="loadCmd"></div>
+    </section>
+
+    <section>
+      <h2>3. Quebre alguma coisa</h2>
+      <p class="hint">Estado dos containers e as falhas usadas nos experimentos: matar uma instância, derrubar o banco, congelar ou esvaziar o cache.</p>
+      <div class="tablewrap"><table id="services"><tbody><tr><td class="st">Carregando…</td></tr></tbody></table></div>
+    </section>
+
+    <section>
+      <h2>4. Mude uma variável</h2>
+      <p class="hint">Este é o <code>.env</code> do estágio atual. Edite e aplique para recriar só os containers afetados.</p>
+      <textarea id="env" spellcheck="false" aria-label="Conteúdo do .env"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="applyBtn">Salvar e aplicar</button>
+        <button id="revertBtn" disabled>Descartar edição</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Sistemas e senhas</h2>
+      <p class="hint">Tudo o que o laboratório sobe, com endereço e credenciais. São senhas de laboratório, só válidas nesta máquina.</p>
+      <div class="systems" id="systems"></div>
+    </section>
+
+    <section>
+      <h2>Encerrar</h2>
+      <p class="hint">Parar mantém o banco e as métricas. Apagar remove os volumes: o banco volta aos 100 mil links iniciais e o histórico do Prometheus some.</p>
+      <div class="row">
+        <button id="downBtn">Parar tudo</button>
+        <button class="danger" id="resetBtn">Apagar tudo…</button>
+      </div>
+    </section>
+    </div>
+  </main>
+
+  <aside class="side">
+    <section>
+      <div class="console-head">
+        <h2 id="consoleTitle">Saída dos comandos</h2>
+        <button class="small" id="clearBtn">Limpar</button>
+      </div>
+      <pre class="console" id="console" aria-live="off"></pre>
+    </section>
+  </aside>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => {
+  const n = Object.assign(document.createElement(tag), props);
+  kids.flat().forEach(k => k != null && n.append(k));
+  return n;
+};
+
+const LABS = [
+  { n: 1, tema: 'MVP', arch: 'cliente → app → Postgres', ver: 'O banco satura; latência e erros disparam.',
+    cargas: [['ramp', { MAX_RPS: 3000 }]] },
+  { n: 2, tema: 'Geração de IDs', arch: 'igual ao Lab 1, IDs aleatórios', ver: 'Colisões crescem conforme o espaço de códigos enche.',
+    cargas: [['write', { RPS: 400, DURATION: '2m' }]] },
+  { n: 3, tema: 'Cache', arch: 'app → Redis → Postgres', ver: 'Cache lento derruba tudo; cache frio devolve a carga ao banco.',
+    cargas: [['ramp', { MAX_RPS: 3000 }], ['read', { RPS: 1000, DURATION: '90s' }], ['read', { RPS: 1500, DURATION: '90s' }], ['read', { RPS: 1500, SKEW: 1, DURATION: '2m' }]] },
+  { n: 4, tema: 'Disponibilidade', arch: 'nginx → 3 apps → Redis + Postgres', ver: 'Instância morre; banco morre; quem sobrevive?',
+    cargas: [['read', { RPS: 1500, DURATION: '3m' }]] },
+  { n: 5, tema: 'Réplica de leitura', arch: 'escrita no primário, leitura na réplica', ver: 'Réplica atrasada: “criei o link e deu 404”.',
+    cargas: [['mixed', { RPS: 300, WRITE_RPS: 20, DURATION: '2m' }]] },
+  { n: 6, tema: 'Analytics', arch: 'Lab 4 + contagem de cliques', ver: 'Contar clique na requisição transforma leitura em escrita.',
+    cargas: [['read', { RPS: 150, DURATION: '1m' }], ['read', { RPS: 1500, DURATION: '1m' }]] },
+];
+const VARS = {
+  read:  [['RPS', 500, 'req/s'], ['DURATION', '2m', 'duração'], ['SKEW', '', 'SKEW (padrão 8)']],
+  ramp:  [['MAX_RPS', 3000, 'pico em req/s'], ['STEPS', '', 'degraus (padrão 6)'], ['STEP_DURATION', '', 'por degrau (padrão 30s)'], ['SKEW', '', 'SKEW (padrão 8)']],
+  write: [['RPS', 200, 'req/s'], ['DURATION', '2m', 'duração']],
+  mixed: [['RPS', 300, 'leituras/s'], ['WRITE_RPS', 20, 'escritas/s'], ['DURATION', '2m', 'duração'], ['SKEW', '', 'SKEW (padrão 8)']],
+};
+const HOST = location.hostname || 'localhost';   // o painel pode ser aberto de outra máquina
+const CHAOS = ['app1', 'app2', 'app3', 'lb', 'pg', 'pg-replica', 'redis'];
+
+let S = null, since = 0, envDirty = false, renderedKey = '';
+
+// ---------- chamadas ----------
+async function post(path, body) {
+  try {
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    const j = await r.json();
+    if (j.error) toast(j.error);
+    poll();
+    return !j.error;
+  } catch { toast('O painel não respondeu.'); return false; }
+}
+let toastTimer;
+function toast(msg) {
+  $('toast').textContent = msg; $('toast').classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('show'), 3200);
+}
+function copy(text) {
+  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(
+    () => toast('Copiado'), () => toast('Não consegui copiar; selecione o texto.'));
+}
+
+// ---------- labs ----------
+function renderLabs() {
+  $('labs').replaceChildren(...LABS.map(l => el('div', { className: 'lab' + (S.lab === l.n ? ' current' : '') },
+    el('h3', {}, `Lab ${l.n} — ${l.tema}`, S.lab === l.n ? el('small', {}, 'no .env agora') : null),
+    el('div', { className: 'arch' }, l.arch),
+    el('p', {}, l.ver),
+    el('button', { className: S.lab === l.n ? '' : 'primary', disabled: !!S.job, textContent: S.lab === l.n ? 'Subir de novo' : 'Subir',
+      onclick: () => post('/api/lab', { n: l.n }) }))));
+}
+
+// ---------- carga ----------
+function renderVars(values) {
+  const script = $('script').value;
+  $('vars').replaceChildren(...VARS[script].map(([k, def, hint]) =>
+    el('label', { className: 'field' }, `${k} · ${hint}`,
+      el('input', { className: 'num', id: 'v_' + k, value: values ? (values[k] ?? '') : def, oninput: renderCmd }))));
+  renderCmd();
+}
+function loadVars() {
+  const vars = {};
+  VARS[$('script').value].forEach(([k]) => { const v = $('v_' + k).value.trim(); if (v) vars[k] = v; });
+  return vars;
+}
+function renderCmd() {
+  const vars = Object.entries(loadVars()).map(([k, v]) => ` ${k}=${v}`).join('');
+  $('loadCmd').textContent = `Equivale a: make load SCRIPT=${$('script').value}${vars}`;
+}
+function renderPresets() {
+  const lab = LABS.find(l => l.n === S.lab);
+  if (!lab) return $('presets').replaceChildren();
+  $('presets').replaceChildren(`Do roteiro do Lab ${lab.n}:`, ...lab.cargas.map(([script, vars]) =>
+    el('button', { textContent: script + Object.entries(vars).map(([k, v]) => ` ${k}=${v}`).join(''),
+      onclick: () => { $('script').value = script; renderVars(vars); } })));
+}
+$('script').onchange = () => renderVars();
+$('loadBtn').onclick = () => post('/api/load', { script: $('script').value, vars: loadVars() });
+$('stopBtn').onclick = () => post('/api/stop');
+
+// ---------- serviços ----------
+function stateOf(s) {
+  if (s.state === 'paused') return ['warn', 'pausado'];
+  if (s.state === 'running') return s.health === 'unhealthy' ? ['bad', 'rodando, sem saúde'] : s.health === 'starting' ? ['warn', 'subindo'] : ['ok', 'rodando'];
+  if (s.state === 'exited' || s.state === 'dead') return ['bad', 'parado'];
+  return ['', s.state || '?'];
+}
+function renderServices() {
+  const busy = S.job && S.job.kind === 'stack';
+  const act = (label, service, action, cls = '') => el('button', { className: 'small ' + cls, disabled: busy, textContent: label,
+    onclick: () => post('/api/service', { service, action }) });
+  if (!S.services.length) {
+    return $('services').tBodies[0].replaceChildren(el('tr', {}, el('td', { className: 'st' },
+      S.servicesError ? 'Não consegui consultar o Docker: ' + S.servicesError : 'Nenhum container no ar. Suba um laboratório.')));
+  }
+  $('services').tBodies[0].replaceChildren(...S.services.map(s => {
+    const [cls, label] = stateOf(s);
+    const btns = [];
+    if (CHAOS.includes(s.service)) {
+      if (s.state === 'running') {
+        if (s.service === 'redis') btns.push(act('Esvaziar (FLUSHALL)', 'redis', 'flushall'));
+        btns.push(act('Pausar', s.service, 'pause'), act('Reiniciar', s.service, 'restart'), act('Matar', s.service, 'kill', 'danger'));
+      } else if (s.state === 'paused') btns.push(act('Retomar', s.service, 'unpause'));
+      else btns.push(act('Iniciar', s.service, 'start'));
+    }
+    return el('tr', {},
+      el('td', { className: 'svc' }, el('span', { className: 'dot ' + cls }), s.service),
+      el('td', { className: 'st', title: s.status }, label),
+      el('td', { className: 'acts' }, btns));
+  }));
+}
+
+// ---------- .env ----------
+$('env').oninput = () => { envDirty = $('env').value !== S.env; $('revertBtn').disabled = !envDirty; };
+$('revertBtn').onclick = () => { $('env').value = S.env; envDirty = false; $('revertBtn').disabled = true; };
+$('applyBtn').onclick = async () => {
+  if (await post('/api/apply', envDirty ? { env: $('env').value } : {})) { envDirty = false; $('revertBtn').disabled = true; }
+};
+
+// ---------- sistemas e senhas ----------
+function renderSystems() {
+  const p = S.ports, dc = S.dc, up = n => S.services.find(s => s.service === n);
+  const pgUrl = h => `postgres://shortener:shortener@${h}:5432/shortener`;
+  const list = [
+    { nome: 'Interface visual do encurtador', svc: 'ui', desc: 'Página para criar links, testar o redirect e ver um resumo das métricas.',
+      f: [['Endereço', `http://${HOST}:${p.ui}`, 'link'], ['Login', 'Sem autenticação.', 'plain']] },
+    { nome: 'Grafana', svc: 'grafana', desc: 'Dashboard “Encurtador de links — Aula 01” como página inicial.',
+      f: [['Endereço', `http://${HOST}:${p.grafana}`, 'link'], ['Login', 'Não pede login: acesso anônimo com papel Admin.', 'plain']] },
+    { nome: 'Prometheus', svc: 'prometheus', desc: 'Métricas da aplicação, do Postgres e do k6. Retenção de 2 dias.',
+      f: [['Endereço', `http://${HOST}:${p.prom}`, 'link'], ['Alvos', `http://${HOST}:${p.prom}/targets`, 'link'], ['Login', 'Sem autenticação.', 'plain']] },
+    { nome: 'Encurtador (app1)', svc: 'app1', desc: 'A aplicação em Go, acessada direto, sem balanceador.',
+      f: [['Endereço', `http://${HOST}:${p.app}`, 'copy'], ['Redirect', `http://${HOST}:${p.app}/s-42`, 'link'], ['Métricas', `http://${HOST}:${p.app}/metrics`, 'link'],
+          ['Criar link', `curl -s -XPOST localhost:${p.app}/api/links -d '{"url":"https://exemplo.com"}'`, 'copy'],
+          ['Ver cliques', `curl -s localhost:${p.app}/api/links/s-1`, 'copy'], ['Login', 'Sem autenticação.', 'plain']] },
+    { nome: 'Balanceador (nginx)', svc: 'lb', quando: 'Labs 4–6', desc: 'Round-robin entre app1, app2 e app3.',
+      f: [['Endereço', `http://${HOST}:${p.lb}`, 'copy'], ['Redirect', `http://${HOST}:${p.lb}/s-42`, 'link'], ['Login', 'Sem autenticação.', 'plain']] },
+    { nome: 'Postgres — primário', svc: 'pg', desc: 'Sem porta publicada: acesse por dentro do Docker.',
+      f: [['Host', 'pg:5432', 'copy'], ['Banco', 'shortener', 'copy'], ['Usuário', 'shortener', 'copy'], ['Senha', 'shortener', 'copy'],
+          ['URL', pgUrl('pg'), 'copy'], ['Abrir psql', `${dc} exec pg psql -U shortener shortener`, 'copy'],
+          ['Replicação', 'usuário replicator, senha replicator', 'plain']] },
+    { nome: 'Postgres — réplica', svc: 'pg-replica', quando: 'Lab 5', desc: 'Somente leitura, com atraso proposital.',
+      f: [['Host', 'pg-replica:5432', 'copy'], ['Banco', 'shortener', 'copy'], ['Usuário', 'shortener', 'copy'], ['Senha', 'shortener', 'copy'],
+          ['URL', pgUrl('pg-replica'), 'copy'], ['Abrir psql', `${dc} exec pg-replica psql -U shortener shortener`, 'copy']] },
+    { nome: 'Redis', svc: 'redis', desc: 'Cache dos Labs 3–6. Sem porta publicada e sem persistência.',
+      f: [['Host', 'redis:6379', 'copy'], ['Senha', 'Sem senha.', 'plain'], ['Abrir redis-cli', `${dc} exec redis redis-cli`, 'copy']] },
+    { nome: 'Exportadores e k6', desc: 'Sem interface. O postgres-exporter usa shortener / shortener; o k6 grava as métricas no Prometheus.',
+      f: [['pg-exporter', 'pg-exporter:9187', 'copy'], ['k6', 'sobe só durante a carga', 'plain']] },
+  ];
+  $('systems').replaceChildren(...list.map(sys => {
+    const s = sys.svc && up(sys.svc), [cls] = s ? stateOf(s) : [''];
+    const dl = el('dl');
+    sys.f.forEach(([k, v, kind]) => {
+      dl.append(el('dt', {}, k));
+      if (kind === 'plain') dl.append(el('dd', { className: 'plain' }, v));
+      else if (kind === 'link') dl.append(el('dd', {}, el('a', { href: v, target: '_blank', rel: 'noopener', textContent: v })),
+        el('button', { className: 'small', textContent: 'Copiar', onclick: () => copy(v) }));
+      else dl.append(el('dd', {}, v), el('button', { className: 'small', textContent: 'Copiar', onclick: () => copy(v) }));
+    });
+    return el('div', { className: 'sys' },
+      el('h3', {}, sys.svc ? el('span', { className: 'dot ' + cls, title: s ? stateOf(s)[1] : 'fora do ar' }) : null, sys.nome,
+        sys.quando ? el('span', { className: 'when' }, sys.quando) : null),
+      el('p', {}, sys.desc), dl);
+  }));
+}
+
+// ---------- encerrar ----------
+$('downBtn').onclick = () => post('/api/down');
+let resetArmed;
+$('resetBtn').onclick = () => {
+  if ($('resetBtn').dataset.armed) { delete $('resetBtn').dataset.armed; $('resetBtn').textContent = 'Apagar tudo…'; clearTimeout(resetArmed); return post('/api/reset'); }
+  $('resetBtn').dataset.armed = '1'; $('resetBtn').textContent = 'Clique de novo para apagar banco e métricas';
+  resetArmed = setTimeout(() => { delete $('resetBtn').dataset.armed; $('resetBtn').textContent = 'Apagar tudo…'; }, 5000);
+};
+
+// ---------- console ----------
+function appendLog(lines) {
+  if (!lines.length) return;
+  const c = $('console'), stick = c.scrollHeight - c.scrollTop - c.clientHeight < 40;
+  const frag = document.createDocumentFragment();
+  lines.forEach(l => {
+    const cls = l.startsWith('$ ') ? 'c' : l.startsWith('━━') ? 'h' : l.startsWith('✓') ? 'g' : /^(✗|■|erro)/.test(l) ? 'r' : '';
+    frag.append(cls ? el('span', { className: cls }, l) : l, '\n');
+  });
+  c.append(frag);
+  while (c.childNodes.length > 6000) c.firstChild.remove();
+  if (stick) c.scrollTop = c.scrollHeight;
+}
+$('clearBtn').onclick = () => $('console').replaceChildren();
+
+// ---------- modo guiado ----------
+// Cada passo é uma ação que o painel já sabe fazer. O botão principal executa
+// a ação e, quando ela termina, vira "Próximo".
+const L = (script, vars) => ({ tipo: 'load', script, vars });
+const E = (k, v) => ({ tipo: 'env', k, v });
+const SV = (service, action, confirma) => ({ tipo: 'service', service, action, confirma });
+const STEPS = [
+  { lab: 1, t: 'Suba o MVP', a: { tipo: 'lab', n: 1 },
+    x: 'Uma aplicação e um Postgres. Sem cache, sem réplica, sem fila.',
+    ver: ['Painéis: Requisições por segundo · Latência do redirect · Pool de conexões · Espera por conexão.'] },
+  { lab: 1, t: 'Aplique a rampa até 3.000 req/s', a: L('ramp', { MAX_RPS: 3000 }),
+    x: 'Seis degraus de 30 segundos. Em algum deles o sistema para de acompanhar.',
+    ver: ['Até ~2.000 req/s tudo responde 302 em poucos milissegundos.',
+          'Perto de 2.500 req/s o pool chega a 10/10 e a espera por conexão sobe.',
+          'Aparecem os 503. Referência a 3.000 req/s: 97% de sucesso e p95 de 1,1 s.'] },
+  { lab: 1, t: 'Experimento: aumente o pool para 50', a: E('DB_POOL_MAX', '50'),
+    x: 'Se faltam conexões, dar mais conexões resolve?' },
+  { lab: 1, t: 'Repita a rampa', a: L('ramp', { MAX_RPS: 3000 }),
+    x: 'A mesma carga, agora com 50 conexões.',
+    ver: ['Melhorou? Pool maior não cria CPU no banco: só muda o lugar onde a fila se forma.'] },
+  { lab: 1, t: 'Experimento: dê mais CPU ao banco', a: E('PG_CPUS', '0.5'),
+    x: 'De 0,2 para 0,5 CPU. Isso é escalar verticalmente.' },
+  { lab: 1, t: 'Repita a rampa mais uma vez', a: L('ramp', { MAX_RPS: 3000 }),
+    x: 'Agora quem mudou foi o recurso que estava acabando.',
+    ver: ['Qual recurso acaba primeiro? Como você sabe?',
+          'A estimativa pede ~4.000 req/s de média e 20.000 de pico. Este desenho aguenta?'] },
+
+  { lab: 2, t: 'Suba o Lab 2: IDs aleatórios de 3 caracteres', a: { tipo: 'lab', n: 2 },
+    x: 'A mesma arquitetura do Lab 1. Muda só como o código curto nasce.',
+    ver: ['Painéis: linha Geração de IDs — Colisões de código e Taxa de colisão.'] },
+  { lab: 2, t: 'Crie links a 400 por segundo', a: L('write', { RPS: 400, DURATION: '2m' }),
+    x: 'Com 3 caracteres existem só 62³ = 238.328 códigos.',
+    ver: ['A taxa de colisão sobe sem parar (referência: 9% depois de 24 mil links).',
+          'Cada colisão é um INSERT desperdiçado: a criação fica mais lenta com o tempo.'] },
+  { lab: 2, t: 'Experimento: 7 caracteres', a: E('CODE_LENGTH', '7'),
+    x: '62⁷ ≈ 3,5 trilhões de códigos.' },
+  { lab: 2, t: 'Repita a criação de links', a: L('write', { RPS: 400, DURATION: '2m' }),
+    x: 'O mesmo teste, com o espaço de códigos muito maior.',
+    ver: ['As colisões somem do gráfico. Quanto tempo até voltarem a incomodar?'] },
+  { lab: 2, t: 'Experimento: contador central', a: E('ID_STRATEGY', 'counter'),
+    x: 'Um número sequencial vindo do banco, escrito em base62.' },
+  { lab: 2, t: 'Repita a criação de links', a: L('write', { RPS: 400, DURATION: '2m' }),
+    x: 'Sem colisão — e com um custo novo.',
+    ver: ['Em Latência das queries apareceu id_next: uma ida extra ao primário por link.',
+          'Crie três links seguidos. Dá para adivinhar o próximo código?'] },
+  { lab: 2, t: 'Experimento: blocos de IDs por instância', a: E('ID_STRATEGY', 'range'),
+    x: 'Cada instância reserva 1.000 IDs de uma vez e gasta em memória.' },
+  { lab: 2, t: 'Repita a criação de links', a: L('write', { RPS: 400, DURATION: '2m' }),
+    x: 'Uma ida ao banco a cada mil links, em vez de uma por link.',
+    ver: ['id_block aparece uma vez a cada mil links.',
+          'Qual estratégia continua funcionando com 3 instâncias? E com 3 regiões?'] },
+
+  { lab: 3, t: 'Suba o Lab 3: Redis na frente do banco', a: { tipo: 'lab', n: 3 },
+    x: 'Cache-aside: a aplicação procura no Redis e só vai ao Postgres se não achar.',
+    ver: ['Painéis: linha Cache · Latência do redirect · Quem responde o redirect: cache × banco.'] },
+  { lab: 3, t: 'A mesma rampa que quebrou o MVP', a: L('ramp', { MAX_RPS: 3000 }),
+    x: 'Até 3.000 req/s, agora com cache.',
+    ver: ['Referência: 100% de sucesso e p95 abaixo de 5 ms.',
+          'O hit ratio começa baixo e sobe: cache frio não ajuda ninguém.',
+          'Os SELECTs no banco ficam quase constantes enquanto o tráfego cresce.'] },
+  { lab: 3, t: 'Carga constante de 1.000 req/s', a: L('read', { RPS: 1000, DURATION: '90s' }),
+    x: 'Deixe a carga rodando e avance: o próximo passo congela o Redis no meio do teste.' },
+  { lab: 3, t: 'Congele o Redis', a: SV('redis', 'pause'),
+    x: 'O Redis para de responder, sem recusar conexão. Espere uns 15 segundos antes de avançar.',
+    ver: ['O p99 vai para perto de 5 segundos e a vazão despenca.',
+          'Cada requisição espera o timeout de 1 s do Redis antes de ir ao banco.'] },
+  { lab: 3, t: 'Descongele o Redis', a: SV('redis', 'unpause'),
+    x: 'O cache volta a responder.' },
+  { lab: 3, t: 'Experimento: timeout de 50 ms', a: E('REDIS_TIMEOUT_MS', '50'),
+    x: 'Timeout curto transforma dependência lenta em dependência ausente.' },
+  { lab: 3, t: 'Repita a carga de 1.000 req/s', a: L('read', { RPS: 1000, DURATION: '90s' }),
+    x: 'Deixe rodando e avance para congelar o Redis de novo.' },
+  { lab: 3, t: 'Congele o Redis de novo', a: SV('redis', 'pause'),
+    x: 'O mesmo defeito, agora com timeout de 50 ms. Espere uns 15 segundos.',
+    ver: ['O banco assume e o usuário mal percebe. O que mudou?'] },
+  { lab: 3, t: 'Descongele o Redis', a: SV('redis', 'unpause'), x: 'Fim do experimento de cache lento.' },
+  { lab: 3, t: 'Carga de 1.500 req/s', a: L('read', { RPS: 1500, DURATION: '90s' }),
+    x: 'Deixe rodando e avance: o próximo passo esvazia o cache.' },
+  { lab: 3, t: 'Esvazie o cache', a: SV('redis', 'flushall'),
+    x: 'FLUSHALL no meio do teste: o cache fica frio de uma vez.',
+    ver: ['Em Quem responde o redirect, a carga volta inteira para o banco de uma vez.'] },
+  { lab: 3, t: 'O que o cache não resolve', a: L('read', { RPS: 1500, SKEW: 1, DURATION: '2m' }),
+    x: 'Acesso uniforme sobre 100 mil links (SKEW=1), em vez de concentrado em poucos.',
+    ver: ['O hit ratio demora muito mais para subir.', 'Cache funciona porque o tráfego real é concentrado.'] },
+
+  { lab: 4, t: 'Suba o Lab 4: três instâncias e um balanceador', a: { tipo: 'lab', n: 4 },
+    x: 'nginx na frente de três aplicações, com Redis e Postgres atrás.',
+    ver: ['Painéis: linha Disponibilidade · Erros (5xx) · Falhas vistas pelo cliente.'] },
+  { lab: 4, t: 'Carga de 1.500 req/s por 3 minutos', a: L('read', { RPS: 1500, DURATION: '3m' }),
+    x: 'Deixe rodando e avance: os próximos passos derrubam peças com a carga no ar.' },
+  { lab: 4, t: 'Mate uma instância', a: SV('app2', 'kill'),
+    x: 'A app2 morre sem aviso. Espere uns 20 segundos antes de avançar.',
+    ver: ['Instâncias no ar cai para 2 e o tráfego se redistribui.',
+          'O balanceador reenvia a requisição que falhou. Referência: 99,98% de sucesso.'] },
+  { lab: 4, t: 'Suba a instância de volta', a: SV('app2', 'start'), x: 'A app2 volta para a rotação.' },
+  { lab: 4, t: 'Mate o banco', a: SV('pg', 'kill', true),
+    x: 'O Postgres morre com a carga rodando. O banco é a peça única do desenho.',
+    ver: ['Redirects de links que estão no cache continuam (referência: ~85% do tráfego).',
+          'Links fora do cache e toda criação de link respondem 503.',
+          'Leitura e escrita têm disponibilidades diferentes. Qual das duas o negócio precisa mais?'] },
+  { lab: 4, t: 'Suba o banco de volta', a: SV('pg', 'start'), x: 'O Postgres volta e os 503 somem.' },
+  { lab: 4, t: 'Para fazer à mão: health check agressivo', a: null,
+    x: 'Em lb/nginx.conf, acrescente http_503 ao proxy_next_upstream, reinicie o lb e mate o banco de novo.',
+    ver: ['O balanceador passa a tratar todo 503 como instância morta e tira as três da rotação.',
+          'Até os links em cache viram 502: uma falha parcial virou indisponibilidade total.'] },
+
+  { lab: 5, t: 'Suba o Lab 5: réplica de leitura', a: { tipo: 'lab', n: 5 },
+    x: 'Escritas no primário, leituras numa réplica com 2 s de atraso proposital. Começa sem cache.',
+    ver: ['Painéis: Leitura do que acabei de escrever · Lag de replicação · Transações por segundo no Postgres.'] },
+  { lab: 5, t: 'Carga mista: leio e “criei e cliquei”', a: L('mixed', { RPS: 300, WRITE_RPS: 20, DURATION: '2m' }),
+    x: '300 leituras e 20 criações por segundo; cada link criado é clicado em seguida.',
+    ver: ['As leituras saíram do primário: as transações aparecem em replica.',
+          '“Criei e cliquei” recebe 404 em 100% das vezes: a réplica ainda não tem o link.',
+          'O lag de replicação fica em torno de 2 s.'] },
+  { lab: 5, t: 'Experimento: ligue o cache', a: E('CACHE_ENABLED', 'true'),
+    x: 'A criação passa a gravar o link no cache (write-through).' },
+  { lab: 5, t: 'Repita a carga mista', a: L('mixed', { RPS: 300, WRITE_RPS: 20, DURATION: '2m' }),
+    x: 'A mesma carga, com o cache ligado.',
+    ver: ['As leituras obsoletas vão a zero: a leitura seguinte nem chega à réplica.',
+          'Que outras formas existem de garantir “leio o que escrevi”? Qual o custo de cada uma?'] },
+
+  { lab: 6, t: 'Suba o Lab 6: contando cliques', a: { tipo: 'lab', n: 6 },
+    x: 'A arquitetura do Lab 4, com a contagem síncrona: um UPDATE no primário a cada clique.',
+    ver: ['Painéis: linha Analytics · Latência do redirect · Linhas lidas × escritas por segundo.'] },
+  { lab: 6, t: 'Síncrono a 150 req/s', a: L('read', { RPS: 150, DURATION: '1m' }),
+    x: 'Pouca carga, de propósito.',
+    ver: ['Funciona, mas o redirect já ficou lento (referência: p95 de 214 ms).',
+          'O cache deixou de proteger o banco: toda leitura agora é também uma escrita.'] },
+  { lab: 6, t: 'Síncrono a 1.500 req/s', a: L('read', { RPS: 1500, DURATION: '1m' }),
+    x: 'A mesma carga que o Lab 4 aguentava.',
+    ver: ['Colapso. Referência: 64% de sucesso, p99 de 2,5 s, quase nenhum clique gravado.'] },
+  { lab: 6, t: 'Troque para assíncrono', a: E('ANALYTICS_MODE', 'async'),
+    x: 'O redirect só enfileira o clique; um lote por segundo vai para uma tabela de eventos.' },
+  { lab: 6, t: 'Assíncrono a 150 req/s', a: L('read', { RPS: 150, DURATION: '1m' }),
+    x: 'A carga leve, agora sem escrita no caminho do redirect.' },
+  { lab: 6, t: 'Assíncrono a 1.500 req/s', a: L('read', { RPS: 1500, DURATION: '1m' }),
+    x: 'Deixe rodando e avance: o próximo passo mata uma instância.',
+    ver: ['Referência: 100% de sucesso, p95 de 35 ms, 1.500 cliques/s gravados e fila perto de zero.'] },
+  { lab: 6, t: 'Mate uma instância com carga rodando', a: SV('app1', 'kill', true),
+    x: 'A fila de cliques da app1 está em memória e morre com o processo.',
+    ver: ['Quantos cliques se perderam? Isso é aceitável para analytics? E para cobrança por clique?'] },
+  { lab: 6, t: 'Suba a instância de volta', a: SV('app1', 'start'), x: 'A app1 volta para a rotação.' },
+  { lab: 6, t: 'Fim do roteiro', a: null,
+    x: 'Do MVP à escala, um gargalo por vez. Para parar ou apagar tudo, use o modo Livre.',
+    ver: ['Toda peça resolveu um problema e criou outro.', 'Arquitetura se discute olhando o gráfico.'] },
+];
+const VERBO = { pause: 'Pausar', unpause: 'Retomar', kill: 'Matar', start: 'Iniciar', restart: 'Reiniciar', flushall: 'Esvaziar' };
+const store = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+// st: idle (ainda não executou) · running (tarefa do painel em andamento) · done · failed
+const G = { i: Math.min(Math.max(parseInt(store.get('painel.passo', '0'), 10) || 0, 0), STEPS.length - 1), st: 'idle', mark: 0, armed: false };
+
+function actionLabel(a) {
+  if (a.tipo === 'lab') return `Subir o Lab ${a.n}`;
+  if (a.tipo === 'load') return 'Iniciar carga';
+  if (a.tipo === 'env') return `Aplicar ${a.k}=${a.v}`;
+  return `${VERBO[a.action]} ${a.service}`;
+}
+function actionCmd(a) {
+  if (a.tipo === 'lab') return `make lab${a.n}`;
+  if (a.tipo === 'load') return `make load SCRIPT=${a.script}` + Object.entries(a.vars).map(([k, v]) => ` ${k}=${v}`).join('');
+  if (a.tipo === 'env') return `${a.k}=${a.v} no .env  +  make apply`;
+  if (a.action === 'flushall') return `${S.dc} exec redis redis-cli FLUSHALL`;
+  return `${S.dc} ${a.action} ${a.service}`;
+}
+function setEnv(text, k, v) {
+  const re = new RegExp('^\\s*' + k + '\\s*=.*$', 'm');
+  return re.test(text) ? text.replace(re, `${k}=${v}`) : text.replace(/\n*$/, '\n') + `${k}=${v}\n`;
+}
+function goTo(i) {
+  G.i = Math.min(Math.max(i, 0), STEPS.length - 1); G.st = 'idle'; G.armed = false;
+  store.set('painel.passo', String(G.i));
+  renderGuided();
+}
+async function runStep() {
+  const a = STEPS[G.i].a;
+  if (!a || G.st === 'done') return goTo(G.i + 1);
+  if (a.confirma && !G.armed) { G.armed = true; return renderGuided(); }
+  G.armed = false;
+  const mark = S.last.ended;
+  let ok;
+  if (a.tipo === 'lab') ok = await post('/api/lab', { n: a.n });
+  else if (a.tipo === 'load') ok = await post('/api/load', { script: a.script, vars: a.vars });
+  else if (a.tipo === 'env') ok = await post('/api/apply', { env: setEnv(S.env, a.k, a.v) });
+  else ok = await post('/api/service', { service: a.service, action: a.action });
+  if (!ok) return renderGuided();
+  // Subir lab e aplicar .env: espera terminar. Carga e falhas: libera o próximo na hora,
+  // porque vários passos acontecem com a carga rodando.
+  if (a.tipo === 'lab' || a.tipo === 'env') { G.st = 'running'; G.mark = mark; } else G.st = 'done';
+  renderGuided();
+}
+// ---------- desenhos: fluxo de negócio e C4 (contexto, containers, componentes, código) ----------
+// Cada desenho é uma lista de caixas numa grade (c = coluna, r = linha) e de setas entre elas.
+const esc = s => String(s).replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
+function drawDiagram({ nodes, edges, rows, frame }) {
+  const CW = 205, RH = 100, NW = 150, NH = 64, X0 = 8, Y0 = frame ? 34 : 16;
+  const at = n => ({ x: X0 + n.c * CW, y: Y0 + n.r * RH, cx: X0 + n.c * CW + NW / 2, cy: Y0 + n.r * RH + NH / 2 });
+  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const H = Y0 + (rows - 1) * RH + NH + 18;
+  let out = `<svg viewBox="0 0 780 ${H}" role="img" xmlns="http://www.w3.org/2000/svg">`;
+  if (frame) {
+    const fx = X0 + frame.c0 * CW - 9, fw = (frame.c1 - frame.c0) * CW + NW + 18;
+    out += `<g class="d-frame"><rect x="${fx}" y="12" width="${fw}" height="${H - 18}" rx="10"/><text x="${fx + 10}" y="28">${esc(frame.t)}</text></g>`;
+  }
+  const labels = [];
+  (edges || []).forEach(e => {
+    const a = at(byId[e.de]), b = at(byId[e.para]), dx = b.cx - a.cx, dy = b.cy - a.cy;
+    const k = 1 / Math.max(Math.abs(dx) / (NW / 2 + 3), Math.abs(dy) / (NH / 2 + 3));   // corta a seta na borda da caixa
+    const x1 = a.cx + dx * k, y1 = a.cy + dy * k, x2 = b.cx - dx * k, y2 = b.cy - dy * k;
+    const len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+    const head = `${x2},${y2} ${x2 - ux * 9 - uy * 4.5},${y2 - uy * 9 + ux * 4.5} ${x2 - ux * 9 + uy * 4.5},${y2 - uy * 9 - ux * 4.5}`;
+    const dim = e.dim || byId[e.de].dim || byId[e.para].dim;
+    out += `<g class="d-edge${e.novo ? ' novo' : ''}${dim ? ' dim' : ''}${e.dash ? ' dash' : ''}"><line x1="${x1}" y1="${y1}" x2="${x2 - ux * 6}" y2="${y2 - uy * 6}"/><polygon points="${head}"/></g>`;
+    if (e.t && !dim) { const t = e.pos ?? 0.5; labels.push(`<text class="d-label" x="${x1 + (x2 - x1) * t}" y="${y1 + (y2 - y1) * t + 4}">${esc(e.t)}</text>`); }
+  });
+  nodes.forEach(n => {
+    const p = at(n), sub = n.sub ? String(n.sub).split('\n') : [];
+    const cls = ['d-node', n.tipo === 'ext' ? 'ext' : '', n.novo ? 'novo' : '', n.foco ? 'foco' : '', n.dim ? 'dim' : ''].join(' ');
+    const rx = n.tipo === 'pessoa' ? NH / 2 : n.tipo === 'db' ? 14 : 8;
+    out += `<g class="${cls}">`;
+    if (n.pilha) out += `<rect x="${p.x + 8}" y="${p.y - 8}" width="${NW}" height="${NH}" rx="${rx}"/><rect x="${p.x + 4}" y="${p.y - 4}" width="${NW}" height="${NH}" rx="${rx}"/>`;
+    out += `<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" rx="${rx}"/>`;
+    if (n.tipo === 'db') out += `<path d="M${p.x + 2} ${p.y + 9} Q${p.cx} ${p.y + 21} ${p.x + NW - 2} ${p.y + 9}"/>`;
+    const y0 = p.cy + 4 - sub.length * 7 + (n.tipo === 'db' ? 4 : 0);
+    out += `<text x="${p.cx}" y="${y0}">${esc(n.t)}</text>`;
+    sub.forEach((line, i) => { out += `<text class="sub" x="${p.cx}" y="${y0 + 15 + i * 14}">${esc(line)}</text>`; });
+    if (n.novo) out += `<text class="tag" x="${p.x + NW - 4}" y="${p.y - (n.pilha ? 13 : 5)}">NOVO</text>`;
+    out += '</g>';
+  });
+  return out + labels.join('') + '</svg>';
+}
+
+// Fluxo de negócio: o que cada pessoa faz, sem nenhuma caixinha técnica.
+const REGRA = {
+  1: 'Abrir um link tem de ser instantâneo: redirect com p99 abaixo de 100 ms. No pico, o MVP deixa o clique lento ou responde erro.',
+  2: 'O código precisa ser curto, único e, de preferência, impossível de adivinhar. O que muda aqui é só o passo “gera o código”.',
+  3: 'O destino de um link não muda depois de criado. Por isso a resposta pode ser guardada, e “acha o destino” fica barato.',
+  4: 'Abrir um link importa mais do que criar um: redirect com 99,99% de disponibilidade, criação com 99,9%.',
+  5: 'Quem acaba de criar um link clica nele na hora. Se a leitura estiver atrasada, o link “não existe”: 404.',
+  6: 'Contar cliques é requisito, mas a contagem pode atrasar segundos. O redirect não pode esperar por estatística.',
+};
+function flowDiagram(lab) {
+  const novo = { 2: ['c2'], 3: ['a2'], 4: ['a2'], 5: ['c3', 'a1'], 6: ['k1', 'k2', 'k3'] }[lab] || [];
+  const lanes = [
+    ['c', 'Quem divulga', 'quer um link curto', ['Cola a URL longa', 'Encurtador\ngera o código', 'Recebe o link curto']],
+    ['a', 'Quem clica', 'recebeu o link', ['Abre o link curto', 'Encurtador\nacha o destino', 'Cai no site original']],
+    ['k', 'Quem divulga', 'quer saber o resultado', ['Pergunta quantos\ncliques o link teve', 'Encurtador\nsoma os cliques', 'Vê o número']],
+  ];
+  const nodes = [], edges = [];
+  lanes.forEach(([id, quem, sub, passos], r) => {
+    const dim = id === 'k' && lab !== 6;
+    nodes.push({ id: id + '0', c: 0, r, t: quem, sub, tipo: 'pessoa', dim });
+    passos.forEach((p, i) => {
+      const [t, ...rest] = p.split('\n');
+      nodes.push({ id: id + (i + 1), c: i + 1, r, t, sub: rest.join('\n'), dim, novo: novo.includes(id + (i + 1)) });
+      edges.push({ de: id + i, para: id + (i + 1) });
+    });
+  });
+  return { nodes, edges, rows: 3 };
+}
+
+// C1 — contexto: quem usa o sistema e com o que ele conversa. É igual nos seis labs.
+function c1Diagram(lab) {
+  return { rows: 2, nodes: [
+    { id: 'div', c: 0, r: 0, t: 'Quem divulga', sub: 'cria links e vê cliques', tipo: 'pessoa' },
+    { id: 'cli', c: 0, r: 1, t: 'Quem clica', sub: 'abre o link curto', tipo: 'pessoa' },
+    { id: 'sis', c: 1.5, r: 0.5, t: 'Encurtador de links', sub: 'o sistema da aula' },
+    { id: 'dst', c: 3, r: 0.5, t: 'Site de destino', sub: 'fora do sistema', tipo: 'ext' },
+  ], edges: [
+    { de: 'div', para: 'sis', t: 'cria link · vê cliques', novo: lab === 6 },
+    { de: 'cli', para: 'sis', t: 'GET /{código}' },
+    { de: 'sis', para: 'dst', t: '302', dash: true },
+  ] };
+}
+
+// C2 — containers: o que roda. É aqui que cada lab acrescenta uma peça.
+const FOCO = { app1: 'app', app2: 'app', app3: 'app', lb: 'lb', pg: 'pg', 'pg-replica': 'rep', redis: 'redis' };
+function focoDe(a) {
+  if (!a) return null;
+  if (a.tipo === 'service') return FOCO[a.service];
+  if (a.tipo === 'load') return 'cli';
+  if (a.tipo === 'env') return a.k === 'PG_CPUS' ? 'pg' : 'app';
+  return null;
+}
+function c2Diagram(lab, foco) {
+  const ha = lab >= 4, cache = lab >= 3, rep = lab === 5;
+  const nodes = [
+    { id: 'cli', c: 0, r: 1, t: 'Cliente', sub: 'navegador ou k6', tipo: 'pessoa' },
+    { id: 'lb', c: 1, r: 1, t: 'nginx', sub: 'balanceador', dim: !ha, novo: lab === 4 },
+    { id: 'app', c: 2, r: 1, t: 'Aplicação', sub: ha ? 'Go · 3 instâncias' : 'Go · 1 instância', pilha: ha, novo: lab === 4 || lab === 2 },
+    { id: 'redis', c: 3, r: 0, t: 'Redis', sub: 'cache', tipo: 'db', dim: !cache, novo: lab === 3 },
+    { id: 'pg', c: 3, r: 1, t: 'Postgres', sub: rep ? 'primário · escritas' : 'primário · 0,2 CPU', tipo: 'db' },
+    { id: 'rep', c: 3, r: 2, t: 'Postgres', sub: 'réplica · leituras', tipo: 'db', dim: !rep, novo: rep },
+  ];
+  nodes.forEach(n => { if (n.id === foco) n.foco = true; });
+  const edges = ha
+    ? [{ de: 'cli', para: 'lb', t: 'HTTP' }, { de: 'lb', para: 'app', t: 'reenvia', novo: lab === 4 }]
+    : [{ de: 'cli', para: 'app', t: 'HTTP' }];
+  edges.push(
+    { de: 'app', para: 'redis', t: 'GET/SET', novo: lab === 3 },
+    { de: 'app', para: 'pg', t: lab === 6 ? '+ cliques' : rep ? 'escritas' : 'lê/grava', novo: lab === 6 },
+    { de: 'app', para: 'rep', t: 'leituras', novo: rep },
+    { de: 'pg', para: 'rep', t: '2 s depois', dash: true, novo: rep });
+  return { nodes, edges, rows: 3 };
+}
+
+// C3 — componentes: o que existe dentro da aplicação (app/main.go).
+function c3Diagram(lab) {
+  const cache = lab >= 3, fila = lab === 6;
+  return { rows: 3, frame: { c0: 0, c1: 2, t: 'Aplicação (Go) — app/main.go' }, nodes: [
+    { id: 'create', c: 0, r: 0, t: 'create', sub: 'POST /api/links' },
+    { id: 'redirect', c: 1, r: 0, t: 'redirect', sub: 'GET /{código}' },
+    { id: 'stats', c: 2, r: 0, t: 'stats', sub: 'GET /api/links/{cód}' },
+    { id: 'id', c: 0, r: 1, t: 'nextCode', novo: lab === 2,
+      sub: lab === 1 ? 'contador central' : lab === 2 ? '3 estratégias' : 'blocos de 1.000 IDs' },
+    { id: 'res', c: 1, r: 1, t: 'resolve', sub: cache ? 'cache-aside · timeout' : 'vai direto ao banco', novo: lab === 3 },
+    { id: 'fila', c: 2, r: 1, t: 'countClick + flusher', sub: 'fila em memória', dim: !fila, novo: fila },
+    { id: 'pool', c: 1, r: 2, t: 'Pool de conexões', sub: lab === 5 ? 'primário + réplica' : 'primário · DB_POOL_MAX', novo: lab === 5 },
+    { id: 'redis', c: 3, r: 0, t: 'Redis', tipo: 'ext', dim: !cache, novo: lab === 3 },
+    { id: 'pg', c: 3, r: 2, t: 'Postgres', tipo: 'ext' },
+  ], edges: [
+    { de: 'create', para: 'id', t: 'pede o código' },
+    { de: 'redirect', para: 'res', t: 'acha a URL' },
+    { de: 'redirect', para: 'fila', t: 'conta o clique', novo: fila },
+    { de: 'id', para: 'pool', t: 'nextval', pos: 0.4 },
+    { de: 'res', para: 'pool', t: cache ? 'só se não achou' : 'SELECT' },
+    { de: 'fila', para: 'pool', t: 'lote', novo: fila, pos: 0.4 },
+    { de: 'res', para: 'redis', t: 'GET/SET', novo: lab === 3, dim: !cache, pos: 0.86 },
+    { de: 'pool', para: 'pg' },
+  ] };
+}
+
+// C4 — código: o trecho de app/main.go (ou do nginx) que decide o comportamento do lab.
+const CODE = {
+  1: ['resolve() · app/main.go — todo redirect é uma consulta ao banco', [
+    'dbCtx, cancel := context.WithTimeout(ctx, dbTimeout)',
+    'defer cancel()',
+    'var url string',
+    'err := s.reader.QueryRow(dbCtx,',
+    '    `SELECT url FROM links WHERE code = $1`, code).Scan(&url)',
+    'if errors.Is(err, pgx.ErrNoRows) {',
+    '    return "", errNotFound',
+    '}',
+    '// Sem cache: cada clique ocupa uma das DB_POOL_MAX conexões.',
+    '// Quando as 10 estão ocupadas, a próxima requisição espera.',
+  ]],
+  2: ['nextCode() · app/main.go — três formas de nascer um código', [
+    'switch s.idStrategy {',
+    'case "random":   // sem coordenação: sorteia e torce para não colidir',
+    '    return randomCode(s.codeLen), nil',
+    '',
+    'case "range":    // 1 ida ao banco a cada 1000 links',
+    '    if s.blockNext >= s.blockEnd {',
+    '        s.primary.QueryRow(ctx, `SELECT nextval(\'link_block_seq\')`).Scan(&block)',
+    '        s.blockNext, s.blockEnd = block*blockSize, (block+1)*blockSize',
+    '    }',
+    '    id := s.blockNext',
+    '    s.blockNext++',
+    '    return "r" + base62(id), nil',
+    '',
+    'default:         // counter: 1 ida ao primário por link, códigos previsíveis',
+    '    s.primary.QueryRow(ctx, `SELECT nextval(\'link_id_seq\')`).Scan(&id)',
+    '    return base62(id), err',
+    '}',
+  ]],
+  3: ['resolve() · app/main.go — cache-aside', [
+    'if s.cache != nil {',
+    '    url, err := s.cache.Get(ctx, "link:"+code).Result()',
+    '    switch {',
+    '    case err == nil:                 // hit: o banco nem é consultado',
+    '        return url, nil',
+    '    case errors.Is(err, redis.Nil):  // miss: segue para o banco',
+    '    default:                         // cache fora do ar não derruba o redirect',
+    '    }',
+    '}',
+    'err := s.reader.QueryRow(dbCtx, `SELECT url FROM links WHERE code = $1`, code).Scan(&url)',
+    '...',
+    'if s.cache != nil {',
+    '    s.cache.Set(ctx, "link:"+code, url, s.ttl)   // popula na volta',
+    '}',
+  ]],
+  4: ['lb/nginx.conf — três instâncias e o reenvio da requisição que falhou', [
+    'upstream shortener {',
+    '    server app1:8080 max_fails=1 fail_timeout=5s;',
+    '    server app2:8080 max_fails=1 fail_timeout=5s;',
+    '    server app3:8080 max_fails=1 fail_timeout=5s;',
+    '}',
+    'location / {',
+    '    proxy_pass http://shortener;',
+    '    proxy_connect_timeout 1s;',
+    '    proxy_next_upstream error timeout;   # com http_503 aqui, a falha parcial vira total',
+    '}',
+    '',
+    '// app/main.go — o health check responde pelo processo, não pelo banco',
+    'mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })',
+  ]],
+  5: ['create() · app/main.go — gravar no cache ao criar (write-through)', [
+    'tag, err := s.primary.Exec(ctx,',
+    '    `INSERT INTO links (code, url) VALUES ($1, $2) ON CONFLICT (code) DO NOTHING`, code, req.URL)',
+    '...',
+    'if s.cache != nil {',
+    '    // Quem acabou de criar já encontra o link no cache,',
+    '    // mesmo que a réplica de leitura ainda não o tenha recebido.',
+    '    s.cache.Set(ctx, "link:"+code, req.URL, s.ttl)',
+    '}',
+    '',
+    '// resolve() lê de s.reader: a réplica, quando DATABASE_REPLICA_URL está definida.',
+    'err := s.reader.QueryRow(dbCtx, `SELECT url FROM links WHERE code = $1`, code).Scan(&url)',
+  ]],
+  6: ['countClick() · app/main.go — síncrono × assíncrono', [
+    'switch s.analyticsMode {',
+    'case "sync":    // todo redirect vira uma ESCRITA no primário, dentro da requisição',
+    '    _, err := s.primary.Exec(dbCtx,',
+    '        `UPDATE links SET clicks = clicks + 1 WHERE code = $1`, code)',
+    '',
+    'case "async":   // só enfileira; se a fila encher, descarta o clique',
+    '    select {',
+    '    case s.clicks <- code:',
+    '    default:',
+    '        analyticsEvents.WithLabelValues("dropped").Inc()',
+    '    }',
+    '}',
+    '',
+    '// flusher(): um lote por segundo, numa tabela só de eventos',
+    's.primary.CopyFrom(dbCtx, pgx.Identifier{"click_events"},',
+    '    []string{"code", "at"}, pgx.CopyFromRows(rows))',
+  ]],
+};
+const C2_NOTE = {
+  1: 'Dois containers no caminho do pedido: a aplicação e o Postgres.',
+  2: 'As mesmas caixas do Lab 1. Muda o que a aplicação faz para gerar o código, e quantas vezes ela vai ao banco por isso.',
+  3: 'Entra o Redis. A aplicação procura nele antes de ir ao banco.',
+  4: 'Entram o nginx e mais duas instâncias. O banco continua sendo a peça única.',
+  5: 'Entra a réplica. Escritas vão ao primário, leituras à réplica, com 2 s de atraso entre os dois.',
+  6: 'As caixas do Lab 4. A novidade é a seta: cada clique passa a gerar escrita no primário.',
+};
+const C3_NOTE = {
+  1: 'Três rotas, um gerador de código e um pool de conexões. O cache e a fila ainda não participam.',
+  2: 'A novidade é o nextCode: a mesma função com três estratégias.',
+  3: 'O resolve passa a procurar no Redis antes do banco, com timeout.',
+  4: 'Por dentro nada muda: são três cópias idênticas, sem estado próprio. Por isso dá para colocar um balanceador na frente.',
+  5: 'O pool agora tem dois destinos: escritas no primário, leituras na réplica.',
+  6: 'O redirect passa a contar o clique: na hora (UPDATE) ou numa fila que vira um lote por segundo.',
+};
+const TABS = [['neg', 'Fluxo de negócio'], ['c1', 'C1 · Contexto'], ['c2', 'C2 · Containers'], ['c3', 'C3 · Componentes'], ['c4', 'C4 · Código']];
+let gTab = TABS.some(t => t[0] === store.get('painel.desenho', 'c2')) ? store.get('painel.desenho', 'c2') : 'c2', diagKey = '';
+function renderDiagram(step) {
+  const lab = step.lab, foco = focoDe(step.a), key = [gTab, lab, foco].join('|');
+  if (key === diagKey) return;   // não redesenha a cada consulta ao painel
+  diagKey = key;
+  $('gTabs').replaceChildren(...TABS.map(([id, nome]) => el('button', { textContent: nome, onclick: () => {
+    gTab = id; store.set('painel.desenho', id); renderDiagram(STEPS[G.i]); } })));
+  [...$('gTabs').children].forEach((b, i) => b.setAttribute('aria-pressed', TABS[i][0] === gTab));
+  let titulo, nota, html;
+  if (gTab === 'neg') { titulo = `Lab ${lab} — o que o negócio pede`; nota = REGRA[lab]; html = drawDiagram(flowDiagram(lab)); }
+  else if (gTab === 'c1') { titulo = 'C1 — Contexto'; html = drawDiagram(c1Diagram(lab));
+    nota = 'Igual nos seis labs. Quem usa não vê cache, réplica nem fila: só vê se o link abre, e se abre rápido.'; }
+  else if (gTab === 'c2') { titulo = `C2 — Containers do Lab ${lab}`; nota = C2_NOTE[lab]; html = drawDiagram(c2Diagram(lab, foco)); }
+  else if (gTab === 'c3') { titulo = `C3 — Componentes da aplicação no Lab ${lab}`; nota = C3_NOTE[lab]; html = drawDiagram(c3Diagram(lab)); }
+  else { titulo = 'C4 — Código'; nota = CODE[lab][0]; html = null; }
+  $('gDiagTitle').textContent = titulo;
+  $('gDiagNote').textContent = nota;
+  if (html) $('gCanvas').innerHTML = html;   // só textos fixos desta página, já escapados
+  else $('gCanvas').replaceChildren(el('pre', { className: 'g-code', textContent: CODE[lab][1].join('\n') }));
+  $('gLegend').style.display = gTab === 'c4' || gTab === 'c1' ? 'none' : '';
+}
+
+function renderGuided() {
+  if (!S) return;
+  renderDiagram(STEPS[G.i]);
+  const step = STEPS[G.i], a = step.a;
+  if (G.st === 'running' && !S.job && S.last.ended !== G.mark) G.st = S.last.ok ? 'done' : 'failed';
+
+  const firstOf = n => STEPS.findIndex(s => s.lab === n);
+  $('gNav').replaceChildren(...LABS.map(l => el('button', { className: step.lab === l.n ? 'on' : '',
+    textContent: `Lab ${l.n} · ${l.tema}`, onclick: () => goTo(firstOf(l.n)) })));
+  $('gBar').style.width = ((G.i + 1) / STEPS.length * 100) + '%';
+  const inLab = STEPS.filter(s => s.lab === step.lab), pos = inLab.indexOf(step) + 1;
+  $('gKicker').textContent = `Lab ${step.lab} · passo ${pos} de ${inLab.length} · ${G.i + 1} de ${STEPS.length} no roteiro`;
+  $('gTitle').textContent = step.t;
+  $('gText').textContent = step.x;
+  $('gCmd').textContent = a ? 'Equivale a: ' + actionCmd(a) : '';
+
+  // O .env no ar precisa ser o do lab deste passo; senão a ação cairia no lab errado.
+  const wrongLab = !!a && a.tipo !== 'lab' && S.lab !== step.lab;
+  const boxes = [];
+  if (wrongLab) boxes.push(el('div', { className: 'g-box g-warn' },
+    `O laboratório no ar é ${S.lab ? 'o Lab ' + S.lab : 'nenhum'}. Este passo é do Lab ${step.lab}. `,
+    el('button', { className: 'small', textContent: `Ir para “Subir o Lab ${step.lab}”`, onclick: () => goTo(firstOf(step.lab)) })));
+  if (step.ver) boxes.push(el('div', { className: 'g-box' }, el('h3', {}, 'O que observar'),
+    el('ul', {}, step.ver.map(v => el('li', {}, v)))));
+  $('gBoxes').replaceChildren(...boxes);
+
+  const isJob = !!a && a.tipo !== 'service', busy = !!S.job;
+  let status = '', dot = '';
+  if (G.st === 'running') { status = 'Rodando: ' + (S.job ? S.job.name : '…') + '. O botão libera quando terminar.'; dot = 'busy'; }
+  else if (G.st === 'failed') { status = 'A tarefa falhou. Veja a saída dos comandos e tente de novo.'; dot = 'bad'; }
+  else if (G.st === 'done' && a) { status = a.tipo === 'load' && busy ? 'Carga rodando. Pode avançar.' : 'Feito.'; dot = 'ok'; }
+  else if (busy && isJob) { status = 'Aguardando terminar: ' + S.job.name + '.'; dot = 'busy'; }
+  else if (busy) { status = 'Em andamento: ' + S.job.name + '.'; dot = 'busy'; }
+  $('gStatus').replaceChildren(...(status ? [el('span', { className: 'dot ' + dot }), status] : []));
+
+  const main = $('gMain'), last = G.i === STEPS.length - 1;
+  main.className = 'primary';
+  if (!a || G.st === 'done') { main.textContent = last ? 'Roteiro concluído' : 'Próximo →'; main.disabled = last; }
+  else if (G.st === 'running') { main.textContent = 'Rodando…'; main.disabled = true; }
+  else {
+    main.textContent = G.armed ? `Clique de novo para ${VERBO[a.action].toLowerCase()} ${a.service}` : (G.st === 'failed' ? 'Tentar de novo' : actionLabel(a));
+    main.disabled = wrongLab || (busy && (isJob || S.job.kind === 'stack'));
+    if (a.confirma) main.className = 'primary danger-solid';
+  }
+  $('gBack').disabled = G.i === 0;
+  $('gSkip').hidden = !a || G.st === 'done' || last;
+  $('gStop').hidden = !(S.job && S.job.kind === 'load');
+}
+$('gMain').onclick = runStep;
+$('gBack').onclick = () => goTo(G.i - 1);
+$('gSkip').onclick = () => goTo(G.i + 1);
+$('gStop').onclick = () => post('/api/stop');
+
+function setMode(m) {
+  document.body.dataset.mode = m; store.set('painel.modo', m);
+  $('modeGuided').setAttribute('aria-pressed', m === 'guided'); $('modeFree').setAttribute('aria-pressed', m === 'free');
+}
+$('modeGuided').onclick = () => setMode('guided');
+$('modeFree').onclick = () => setMode('free');
+setMode(store.get('painel.modo', 'guided') === 'free' ? 'free' : 'guided');
+
+// ---------- ciclo ----------
+function render() {
+  const lab = LABS.find(l => l.n === S.lab);
+  $('labPill').textContent = lab ? `Lab ${lab.n} — ${lab.tema}` : 'Nenhum lab no .env';
+  const running = S.services.filter(s => s.state === 'running').length;
+  $('labDot').className = 'dot ' + (running ? (S.services.some(s => stateOf(s)[0] === 'bad' || stateOf(s)[0] === 'warn') ? 'warn' : 'ok') : '');
+  $('jobDot').className = 'dot ' + (S.job ? 'busy' : '');
+  $('jobPill').textContent = S.job ? S.job.name + '…' : 'Ocioso';
+  $('consoleTitle').textContent = S.job ? 'Rodando: ' + S.job.name : 'Saída dos comandos';
+  $('loadBtn').disabled = $('applyBtn').disabled = $('downBtn').disabled = $('resetBtn').disabled = !!S.job;
+  $('stopBtn').disabled = !S.job;
+  $('stopBtn').textContent = S.job && S.job.kind !== 'load' ? 'Interromper tarefa' : 'Parar';
+  $('grafanaLink').href = $('gGrafana').href = `http://${HOST}:${S.ports.grafana}`;
+  if (!envDirty && $('env').value !== S.env && document.activeElement !== $('env')) $('env').value = S.env;
+
+  // Só redesenha as listas quando algo mudou, para não roubar foco nem clique.
+  const key = JSON.stringify([S.lab, S.job, S.services, S.servicesError, S.ports, S.dc]);
+  if (key !== renderedKey) { renderedKey = key; renderLabs(); renderPresets(); renderServices(); renderSystems(); }
+  renderGuided();
+}
+let polling = false;
+async function poll() {
+  if (polling) return; polling = true;
+  try {
+    const r = await fetch('/api/state?since=' + since);
+    S = await r.json(); since = S.next;
+    $('offline').classList.remove('show');
+    appendLog(S.log); render();
+  } catch { $('offline').classList.add('show'); }
+  polling = false;
+}
+renderVars();
+poll();
+setInterval(poll, 1500);
+</script>
+</body>
+</html>

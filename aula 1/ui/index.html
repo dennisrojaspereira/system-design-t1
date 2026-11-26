@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encurtador — Aula 01</title>
+<style>
+  :root {
+    --bg: #0F1720; --panel: #16212E; --line: #263648; --ink: #F2F5F7; --ink2: #A9B8C6; --ink3: #7F92A5;
+    --accent: #FF8A3D; --blue: #5BB8FF; --ok: #7FDBA0; --bad: #FF6B6B; --field: #0A1118;
+    --mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 Inter, "Segoe UI", system-ui, Arial, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; display: flex; flex-direction: column; gap: 24px; }
+  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; }
+  .eyebrow { font: 13px var(--mono); letter-spacing: 3px; color: var(--accent); margin: 0 0 6px; }
+  h1 { font-size: 34px; line-height: 1.1; margin: 0; letter-spacing: -0.5px; }
+  h2 { font-size: 20px; margin: 0; }
+  p { margin: 0; }
+  .muted { color: var(--ink2); font-size: 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { background: transparent; color: var(--ink2); border: 0; padding: 9px 16px; font: inherit; font-size: 14px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--blue); color: #0F1720; font-weight: 600; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .tag { font: 12px var(--mono); letter-spacing: 2px; color: var(--blue); }
+  form { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type=text], input[type=url] { flex: 1; min-width: 180px; background: var(--field); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font: 15px var(--mono); }
+  input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .btn { background: var(--accent); color: #0F1720; border: 0; border-radius: 10px; padding: 12px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; padding: 8px 12px; font-size: 14px; }
+  .result { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .result a { color: var(--ok); font: 15px var(--mono); word-break: break-all; flex: 1; min-width: 200px; }
+  .msg { font-size: 14px; min-height: 21px; }
+  .msg.err { color: var(--bad); }
+  .msg.ok { color: var(--ok); }
+  .dest { font: 14px var(--mono); color: var(--ink2); word-break: break-all; }
+  .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .tile .k { font-size: 13px; color: var(--ink2); }
+  .tile .v { font: 600 28px/1.1 var(--mono); color: var(--ink); white-space: nowrap; }
+  .tile .s { font-size: 12px; color: var(--ink3); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink3); flex: none; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--accent); } .dot.bad { background: var(--bad); }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: 220px; }
+  .chart .tip { position: absolute; pointer-events: none; background: #0A1118; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: 13px var(--mono); color: var(--ink); white-space: nowrap; transform: translate(-50%, -120%); display: none; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--ink2); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.mono, td a { font-family: var(--mono); }
+  td a { color: var(--ok); }
+  td.url { color: var(--ink2); word-break: break-all; }
+  td.num { text-align: right; font-family: var(--mono); }
+  .links { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; }
+  .links a { color: var(--blue); }
+  @media (max-width: 980px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, 1fr); } h1 { font-size: 28px; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="eyebrow">SYSTEM DESIGN NA PRÁTICA · AULA 01</p>
+      <h1>Encurtador de links</h1>
+    </div>
+    <div>
+      <p class="muted" style="margin-bottom:6px">Ambiente que responde</p>
+      <div class="seg" role="group" aria-label="Ambiente">
+        <button type="button" data-be="compose" aria-pressed="true">Docker Compose</button>
+        <button type="button" data-be="k8s" aria-pressed="false">Kubernetes</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid2">
+    <section class="panel">
+      <p class="tag">1 · ENCURTAR</p>
+      <h2>Cole um endereço longo</h2>
+      <form id="fCreate">
+        <input type="url" id="url" placeholder="https://exemplo.com/uma/pagina/bem/longa" required aria-label="Endereço longo">
+        <button class="btn" id="bCreate">Encurtar</button>
+      </form>
+      <p class="msg" id="mCreate" role="status"></p>
+      <div class="result" id="created" hidden>
+        <a id="shortLink" href="#" target="_blank" rel="noopener"></a>
+        <button type="button" class="btn btn-ghost" id="bCopy">Copiar</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <p class="tag">2 · ABRIR</p>
+      <h2>Informe o código curto</h2>
+      <form id="fGo">
+        <input type="text" id="code" placeholder="s-42 ou o link curto inteiro" required aria-label="Código curto">
+        <button class="btn" id="bGo">Ir para o destino</button>
+      </form>
+      <p class="msg" id="mGo" role="status"></p>
+      <p class="dest" id="dest"></p>
+      <p class="muted">O banco já tem 100 mil links de exemplo, de <b>s-1</b> a <b>s-100000</b>.</p>
+    </section>
+  </div>
+
+  <section style="display:flex; flex-direction:column; gap:14px">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px">
+      <div><p class="tag">3 · DASHBOARD</p><h2>O que o sistema está fazendo agora</h2></div>
+      <p class="muted" id="updated">aguardando métricas…</p>
+    </div>
+    <div class="tiles">
+      <div class="tile"><span class="k">Requisições por segundo</span><span class="v" id="tRps">–</span><span class="s">últimos 10 s</span></div>
+      <div class="tile"><span class="k">Latência do redirect (p95)</span><span class="v" id="tP95">–</span><span class="s">últimos 10 s</span></div>
+      <div class="tile"><span class="k">Respostas com erro (5xx)</span><span class="v" id="tErr">–</span><span class="s"><span class="dot" id="dErr"></span><span id="sErr">sem tráfego</span></span></div>
+      <div class="tile"><span class="k">Instâncias no ar</span><span class="v" id="tUp">–</span><span class="s"><span class="dot" id="dUp"></span><span id="sUp">–</span></span></div>
+      <div class="tile"><span class="k">Acertos no cache</span><span class="v" id="tHit">–</span><span class="s" id="sHit">–</span></div>
+      <div class="tile"><span class="k">Conexões do banco em uso</span><span class="v" id="tPool">–</span><span class="s"><span class="dot" id="dPool"></span><span id="sPool">–</span></span></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h2>Requisições por segundo</h2><p class="muted">Últimos 5 minutos</p><div class="chart" id="cRps"></div></div>
+      <div class="panel"><h2>Latência do redirect, p95 (ms)</h2><p class="muted">Últimos 5 minutos</p><div class="chart" id="cP95"></div></div>
+    </div>
+    <div class="panel">
+      <h2>Links criados nesta página</h2>
+      <p class="muted">Os cliques só são contados quando o estágio de analytics está ligado (Lab 6).</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Link curto</th><th>Destino</th><th>Ambiente</th><th style="text-align:right">Cliques</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="4" class="muted">Nenhum link criado ainda. Use o formulário acima.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <p class="links" id="ext"></p>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+// As portas vêm de /config.json, gerado pelo nginx a partir das variáveis do .env.
+const BE = {
+  compose: { name: 'Docker Compose', grafana: 3000, prom: 9090 },
+  k8s:     { name: 'Kubernetes',     grafana: 3002, prom: 9091 },
+};
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+let be = BE[store.get('be', 'compose')] ? store.get('be', 'compose') : 'compose';
+let mine = store.get('links', []);
+
+const api = (path, opt) => fetch(`/b/${be}${path}`, opt);
+const shortUrl = (b, code) => `${location.origin}/b/${b}/${encodeURIComponent(code)}`;
+function say(el, text, cls) { el.textContent = text; el.className = 'msg ' + (cls || ''); }
+
+function setBackend(b) {
+  be = b; store.set('be', b);
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x.dataset.be === b));
+  const h = location.hostname, c = BE[b];
+  $('ext').innerHTML = `<a href="http://${h}:${c.grafana}" target="_blank" rel="noopener">Abrir o Grafana (${c.name})</a>` +
+                       `<a href="http://${h}:${c.prom}" target="_blank" rel="noopener">Abrir o Prometheus (${c.name})</a>`;
+  $('created').hidden = true; say($('mCreate'), ''); say($('mGo'), ''); $('dest').textContent = '';
+  refresh();
+}
+document.querySelectorAll('.seg button').forEach(x => x.addEventListener('click', () => setBackend(x.dataset.be)));
+
+// 1 · criar
+$('fCreate').addEventListener('submit', async e => {
+  e.preventDefault();
+  const url = $('url').value.trim();
+  $('bCreate').disabled = true; say($('mCreate'), 'Criando…');
+  try {
+    const r = await api('/api/links', { method: 'POST', body: JSON.stringify({ url }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `o servidor respondeu ${r.status}`);
+    const link = shortUrl(be, j.code);
+    $('shortLink').textContent = link; $('shortLink').href = link; $('created').hidden = false;
+    say($('mCreate'), `Pronto. Código gerado: ${j.code}`, 'ok');
+    mine.unshift({ be, code: j.code, url }); mine = mine.slice(0, 30); store.set('links', mine);
+    $('url').value = ''; renderRows(); loadClicks();
+  } catch (err) { say($('mCreate'), 'Não deu para criar o link: ' + err.message, 'err'); }
+  $('bCreate').disabled = false;
+});
+$('bCopy').addEventListener('click', async () => {
+  const t = $('shortLink').textContent;
+  try { await navigator.clipboard.writeText(t); }
+  catch { const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); }
+  $('bCopy').textContent = 'Copiado'; setTimeout(() => $('bCopy').textContent = 'Copiar', 1500);
+});
+
+// 2 · abrir (redirect)
+$('fGo').addEventListener('submit', async e => {
+  e.preventDefault();
+  const code = $('code').value.trim().replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop();
+  if (!code) return;
+  $('dest').textContent = ''; say($('mGo'), 'Procurando…');
+  const tab = window.open('', '_blank');
+  try {
+    const r = await api('/api/links/' + encodeURIComponent(code));
+    if (r.status === 404) throw new Error(`o código "${code}" não existe neste ambiente`);
+    if (!r.ok) throw new Error(`o servidor respondeu ${r.status}`);
+    const j = await r.json();
+    say($('mGo'), 'Redirecionando em uma nova aba para:', 'ok'); $('dest').textContent = j.url;
+    const go = shortUrl(be, code);
+    if (tab) tab.location = go; else location.href = go;
+  } catch (err) { if (tab) tab.close(); say($('mGo'), 'Não deu para abrir: ' + err.message, 'err'); }
+});
+
+// tabela de links
+function renderRows() {
+  const tb = $('rows');
+  if (!mine.length) return;
+  tb.innerHTML = '';
+  mine.forEach((l, i) => {
+    const tr = document.createElement('tr');
+    const a = document.createElement('a'); a.href = shortUrl(l.be, l.code); a.target = '_blank'; a.rel = 'noopener'; a.textContent = l.code;
+    const c1 = document.createElement('td'); c1.appendChild(a);
+    const c2 = document.createElement('td'); c2.className = 'url'; c2.textContent = l.url;
+    const c3 = document.createElement('td'); c3.textContent = BE[l.be] ? BE[l.be].name : l.be;
+    const c4 = document.createElement('td'); c4.className = 'num'; c4.id = 'clk' + i; c4.textContent = l.clicks ?? '–';
+    tr.append(c1, c2, c3, c4); tb.appendChild(tr);
+  });
+}
+async function loadClicks() {
+  await Promise.all(mine.slice(0, 12).map(async (l, i) => {
+    try {
+      const r = await fetch(`/b/${l.be}/api/links/${encodeURIComponent(l.code)}`);
+      if (!r.ok) return;
+      l.clicks = (await r.json()).clicks;
+      const td = $('clk' + i); if (td) td.textContent = l.clicks;
+    } catch {}
+  }));
+}
+
+// 3 · dashboard (Prometheus)
+const Q = {
+  rps:  'sum(rate(http_request_duration_seconds_count[10s]))',
+  p95:  'histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{route="redirect"}[10s])))',
+  err:  'sum(rate(http_request_duration_seconds_count{status=~"5.."}[10s])) / sum(rate(http_request_duration_seconds_count[10s]))',
+  up:   'count(up{job="app"} == 1)',
+  hit:  'sum(rate(shortener_cache_requests_total{result="hit"}[10s])) / sum(rate(shortener_cache_requests_total[10s]))',
+  pool: 'sum(shortener_db_pool_acquired_conns)', poolMax: 'sum(shortener_db_pool_max_conns)',
+};
+async function instant(q) {
+  const r = await fetch(`/p/${be}/api/v1/query?query=${encodeURIComponent(q)}`);
+  const v = (await r.json()).data.result[0];
+  const n = v ? parseFloat(v.value[1]) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+async function range(q) {
+  const end = Math.floor(Date.now() / 1000), start = end - 300;
+  const r = await fetch(`/p/${be}/api/v1/query_range?query=${encodeURIComponent(q)}&start=${start}&end=${end}&step=5`);
+  const v = (await r.json()).data.result[0];
+  return (v ? v.values : []).map(([t, y]) => [t * 1000, parseFloat(y)]).filter(p => Number.isFinite(p[1]));
+}
+const nf = (n, d = 0) => n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const ms = s => s >= 1 ? nf(s, 2) + ' s' : nf(s * 1000, s < 0.01 ? 1 : 0) + ' ms';
+function dot(el, cls) { el.className = 'dot ' + cls; }
+
+let busy = false;
+async function refresh() {
+  if (busy) return; busy = true;
+  const forBe = be;
+  try {
+    let [rps, p95, err, up, hit, pool, poolMax, sRps, sP95] = await Promise.all([
+      instant(Q.rps), instant(Q.p95), instant(Q.err), instant(Q.up), instant(Q.hit), instant(Q.pool), instant(Q.poolMax),
+      range(Q.rps), range(Q.p95),
+    ]);
+    if (forBe !== be) return;
+    if (err == null && rps > 0) err = 0;   // há tráfego e nenhuma série de 5xx: zero erros
+    $('tRps').textContent = rps == null ? '0' : nf(rps, rps < 10 ? 1 : 0);
+    $('tP95').textContent = p95 == null ? '–' : ms(p95);
+    if (err == null) { $('tErr').textContent = '–'; dot($('dErr'), ''); $('sErr').textContent = 'sem tráfego'; }
+    else { $('tErr').textContent = nf(err * 100, 1) + '%'; dot($('dErr'), err === 0 ? 'ok' : err < 0.01 ? 'warn' : 'bad'); $('sErr').textContent = err === 0 ? 'nenhum erro' : err < 0.01 ? 'alguns erros' : 'muitos erros'; }
+    $('tUp').textContent = up == null ? '0' : nf(up);
+    dot($('dUp'), up ? 'ok' : 'bad'); $('sUp').textContent = up ? 'respondendo' : 'nenhuma no ar';
+    $('tHit').textContent = hit == null ? '–' : nf(hit * 100, 0) + '%';
+    $('sHit').textContent = hit == null ? 'cache desligado ou sem leituras' : 'das leituras';
+    if (pool == null || !poolMax) { $('tPool').textContent = '–'; dot($('dPool'), ''); $('sPool').textContent = '–'; }
+    else { const f = pool / poolMax; $('tPool').textContent = `${nf(pool)}/${nf(poolMax)}`; dot($('dPool'), f < 0.7 ? 'ok' : f < 1 ? 'warn' : 'bad'); $('sPool').textContent = f < 0.7 ? 'com folga' : f < 1 ? 'quase cheio' : 'esgotado'; }
+    draw($('cRps'), sRps, v => nf(v, v < 10 ? 1 : 0) + ' req/s', '#5BB8FF');
+    draw($('cP95'), sP95.map(([t, y]) => [t, y * 1000]), v => nf(v, v < 10 ? 1 : 0) + ' ms', '#FF8A3D');
+    $('updated').textContent = `${BE[be].name} · atualizado às ${new Date().toLocaleTimeString('pt-BR')}`;
+  } catch (e) {
+    if (forBe === be) $('updated').textContent = `Sem resposta do Prometheus do ambiente ${BE[be].name}.`;
+  } finally { busy = false; }
+}
+
+// gráfico de linha (uma série) com cursor e valor ao passar o mouse
+function draw(host, pts, fmt, color) {
+  const W = Math.max(320, host.clientWidth), H = 220, L = 52, R = 12, T = 12, B = 26;
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  host.innerHTML = '';
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Série dos últimos 5 minutos' });
+  host.appendChild(svg);
+  const tip = document.createElement('div'); tip.className = 'tip'; host.appendChild(tip);
+  if (pts.length < 2) {
+    const t = el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', fill: '#7F92A5', 'font-size': 14 }); t.textContent = 'Sem dados nos últimos 5 minutos'; svg.appendChild(t); return;
+  }
+  const t1 = Date.now(), t0 = t1 - 300000;
+  const peak = Math.max(...pts.map(p => p[1]));
+  const pow = Math.pow(10, Math.floor(Math.log10(peak || 1)));
+  const ymax = peak ? Math.ceil(peak / pow * 2) / 2 * pow : 1;
+  const x = t => L + (t - t0) / (t1 - t0) * (W - L - R), y = v => T + (1 - v / ymax) * (H - T - B);
+  for (let i = 0; i <= 2; i++) {
+    const v = ymax * i / 2;
+    svg.appendChild(el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: '#263648', 'stroke-width': 1 }));
+    const lb = el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end', fill: '#7F92A5', 'font-size': 12 }); lb.textContent = nf(v, v && v < 10 ? 1 : 0); svg.appendChild(lb);
+  }
+  [[t0, '5 min atrás', 'start'], [t1, 'agora', 'end']].forEach(([t, s, a]) => { const lb = el('text', { x: x(t), y: H - 6, 'text-anchor': a, fill: '#7F92A5', 'font-size': 12 }); lb.textContent = s; svg.appendChild(lb); });
+  const vis = pts.filter(p => p[0] >= t0);
+  svg.appendChild(el('path', { d: vis.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join(' '), fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  const cur = el('line', { y1: T, y2: H - B, stroke: '#A9B8C6', 'stroke-width': 1, visibility: 'hidden' });
+  const mark = el('circle', { r: 5, fill: color, stroke: '#16212E', 'stroke-width': 2, visibility: 'hidden' });
+  svg.append(cur, mark);
+  const over = el('rect', { x: L, y: T, width: W - L - R, height: H - T - B, fill: 'transparent' }); svg.appendChild(over);
+  over.addEventListener('pointermove', ev => {
+    const box = svg.getBoundingClientRect(), px = (ev.clientX - box.left) * W / box.width;
+    let best = vis[0]; for (const p of vis) if (Math.abs(x(p[0]) - px) < Math.abs(x(best[0]) - px)) best = p;
+    const cx = x(best[0]), cy = y(best[1]);
+    cur.setAttribute('x1', cx); cur.setAttribute('x2', cx); cur.setAttribute('visibility', 'visible');
+    mark.setAttribute('cx', cx); mark.setAttribute('cy', cy); mark.setAttribute('visibility', 'visible');
+    tip.textContent = `${fmt(best[1])} · ${new Date(best[0]).toLocaleTimeString('pt-BR')}`;
+    tip.style.display = 'block';
+    tip.style.left = Math.min(Math.max(cx * box.width / W, 70), box.width - 70) + 'px'; tip.style.top = (cy * box.height / H) + 'px';
+  });
+  over.addEventListener('pointerleave', () => { cur.setAttribute('visibility', 'hidden'); mark.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
+}
+
+renderRows(); setBackend(be); loadClicks();
+fetch('/config.json').then(r => r.json()).then(c => {
+  for (const k in BE) if (c[k]) Object.assign(BE[k], c[k]);
+  setBackend(be);
+}).catch(() => {});
+setInterval(refresh, 3000); setInterval(loadClicks, 6000);
+</script>
+</body>
+</html>
