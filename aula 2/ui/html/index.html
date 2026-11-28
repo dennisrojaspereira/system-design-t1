@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plataforma de vídeo — Aula 02</title>
+<style>
+  :root {
+    --bg: #0F1720; --panel: #16212E; --line: #263648; --ink: #F2F5F7; --ink2: #A9B8C6; --ink3: #7F92A5;
+    --accent: #FF8A3D; --blue: #5BB8FF; --ok: #7FDBA0; --bad: #FF6B6B; --warn: #FFD166; --field: #0A1118;
+    --mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Inter, "Segoe UI", system-ui, Arial, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; display: flex; flex-direction: column; gap: 20px; }
+  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; }
+  .eyebrow { font: 13px var(--mono); letter-spacing: 3px; color: var(--accent); margin: 0 0 6px; }
+  h1 { font-size: 30px; line-height: 1.1; margin: 0; letter-spacing: -0.5px; }
+  h2 { font-size: 18px; margin: 0; }
+  h3 { font-size: 14px; margin: 0; color: var(--ink2); font-weight: 600; }
+  p { margin: 0; }
+  a { color: var(--blue); }
+  .muted { color: var(--ink2); font-size: 13.5px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1; min-width: 0; }
+  nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  nav.tabs button { background: transparent; border: 0; border-bottom: 3px solid transparent; color: var(--ink2); padding: 10px 14px; font: inherit; cursor: pointer; }
+  nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  nav.tabs .n { font: 12px var(--mono); color: var(--accent); margin-right: 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-player { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; }
+  @media (max-width: 900px) { .grid2, .grid-player { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .tag { font: 12px var(--mono); letter-spacing: 2px; color: var(--blue); text-transform: uppercase; }
+  input[type=text], input[type=number], select { background: var(--field); color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; font: 14px var(--mono); }
+  input[type=number] { width: 84px; }
+  input:focus-visible, button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .btn { background: var(--accent); color: #0F1720; border: 0; border-radius: 9px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+  .sm { padding: 5px 10px; font-size: 13px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { background: transparent; color: var(--ink2); border: 0; padding: 7px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--blue); color: #0F1720; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; color: var(--ink3); font-weight: 500; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.m, .m { font-family: var(--mono); font-size: 13px; }
+  .pill { display: inline-block; font: 12px var(--mono); padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--ink2); white-space: nowrap; }
+  .pill.READY, .pill.DONE, .pill.HIT, .pill.ok { color: var(--ok); border-color: #2f6b49; }
+  .pill.PROCESSING, .pill.MISS, .pill.warn { color: var(--warn); border-color: #7a6426; }
+  .pill.QUEUED, .pill.UPLOADING { color: var(--blue); border-color: #2c5a80; }
+  .pill.FAILED, .pill.bad { color: var(--bad); border-color: #7a3030; }
+  .course { border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .lesson { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-top: 1px dashed var(--line); }
+  .log { background: var(--field); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font: 12.5px/1.55 var(--mono); color: var(--ink2); max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .log b { color: var(--ink); font-weight: 600; } .log .e { color: var(--bad); } .log .g { color: var(--ok); } .log .y { color: var(--warn); }
+  .parts { display: flex; flex-wrap: wrap; gap: 5px; }
+  .part { width: 34px; height: 30px; border-radius: 6px; border: 1px solid var(--line); background: var(--field); font: 11px var(--mono); color: var(--ink3); display: grid; place-items: center; }
+  .part.sending { border-color: var(--warn); color: var(--warn); }
+  .part.done { background: #1f4a35; border-color: #2f6b49; color: var(--ok); }
+  .part.lost { border-color: var(--bad); color: var(--bad); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; }
+  .stat { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
+  .stat .k { font-size: 12px; color: var(--ink3); } .stat .v { font: 600 17px var(--mono); white-space: nowrap; }
+  .stat .v.bad { color: var(--bad); } .stat .v.ok { color: var(--ok); } .stat .v.warn { color: var(--warn); }
+  video { width: 100%; background: #000; border-radius: 10px; aspect-ratio: 16/9; }
+  .bufbar { height: 10px; background: var(--field); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+  .bufbar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .3s; }
+  label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink3); }
+  .dev { border: 1px solid var(--line); border-radius: 11px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .hint { border-left: 3px solid var(--accent); padding: 6px 12px; color: var(--ink2); font-size: 13.5px; background: rgba(255,138,61,.06); border-radius: 0 8px 8px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="eyebrow">SYSTEM DESIGN NA PRÁTICA · AULA 02</p>
+      <h1>Plataforma de cursos e vídeo sob demanda</h1>
+    </div>
+    <div class="row">
+      <label class="muted" for="user">Aluno</label>
+      <select id="user"><option value="ana">ana — matriculada em tudo</option><option value="bia">bia — sem o curso 1</option></select>
+      <a id="grafana" class="btn ghost sm" target="_blank" rel="noopener">Grafana ↗</a>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="catalogo"><span class="n">00</span>Catálogo</button>
+    <button role="tab" data-tab="upload"><span class="n">LAB 1</span>Upload</button>
+    <button role="tab" data-tab="fila"><span class="n">LAB 2</span>Fila e workers</button>
+    <button role="tab" data-tab="player"><span class="n">LAB 3·4·6</span>Player e CDN</button>
+    <button role="tab" data-tab="progresso"><span class="n">LAB 5</span>Dois dispositivos</button>
+  </nav>
+
+  <!-- ================= CATÁLOGO ================= -->
+  <section id="tab-catalogo" class="panel">
+    <div class="row">
+      <span class="tag">Catálogo e busca</span>
+      <input id="q" type="text" class="grow" placeholder='Busque: vídeo, "índices GIN", postgres -busca' autocomplete="off">
+    </div>
+    <p class="muted">A busca roda no Postgres (<span class="m">tsvector</span> + índice GIN, <span class="m">websearch_to_tsquery</span>). Quem decide o play é a API de playback, que confere matrícula e versão ativa na hora.</p>
+    <div id="courses" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <!-- ================= UPLOAD ================= -->
+  <section id="tab-upload" class="grid2" hidden>
+    <div class="panel">
+      <span class="tag">Upload direto, retomável e privado</span>
+      <div class="row">
+        <label class="f grow">Aula que recebe a nova versão<select id="upLesson"></select></label>
+      </div>
+      <div class="row">
+        <input id="upFile" type="file" accept="video/*" class="grow">
+        <button id="upSample" class="btn ghost sm">Usar vídeo de exemplo</button>
+      </div>
+      <p id="upFileInfo" class="muted">Nenhum arquivo escolhido.</p>
+      <div class="row">
+        <label class="f">Derrubar a conexão em (%)<input id="upDrop" type="number" min="0" max="99" value="60"></label>
+        <label class="f">Atraso por parte (ms)<input id="upDelay" type="number" min="0" max="5000" value="400"></label>
+        <label class="f">Partes em paralelo<input id="upConc" type="number" min="1" max="6" value="3"></label>
+      </div>
+      <div class="row">
+        <button id="upStart" class="btn" disabled>1. Enviar</button>
+        <button id="upResume" class="btn ghost" disabled>2. Retomar o que faltou</button>
+        <button id="upAgain" class="btn ghost" disabled>3. Repetir o complete</button>
+      </div>
+      <div id="upParts" class="parts"></div>
+      <p class="hint">O navegador envia cada parte direto ao storage, por uma URL assinada que vale só para aquela parte. A API recebe três chamadas pequenas e nunca vê os bytes do vídeo.</p>
+    </div>
+    <div class="panel">
+      <span class="tag">Chamadas</span>
+      <div id="upLog" class="log" style="max-height:520px">Escolha um arquivo e clique em Enviar.</div>
+    </div>
+  </section>
+
+  <!-- ================= FILA ================= -->
+  <section id="tab-fila" class="panel" hidden>
+    <div class="row">
+      <span class="tag grow">Processamento assíncrono</span>
+      <label class="f">Rajada (jobs)<input id="burstN" type="number" min="1" max="200" value="8"></label>
+      <button id="burst" class="btn">Simular rajada de publicações</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">Na fila</div><div class="v" id="qQueued">–</div></div>
+      <div class="stat"><div class="k">Processando</div><div class="v" id="qProc">–</div></div>
+      <div class="stat"><div class="k">Prontos</div><div class="v ok" id="qDone">–</div></div>
+      <div class="stat"><div class="k">Falharam</div><div class="v" id="qFailed">–</div></div>
+      <div class="stat"><div class="k">Idade do mais antigo</div><div class="v" id="qAge">–</div></div>
+    </div>
+    <p class="hint">A fila entrega pelo menos uma vez. Derrube ou pause um worker no meio do encode (<span class="m">make kill-worker</span>, <span class="m">make pause-worker</span>) e veja a lease vencer, a tentativa subir e só uma publicação acontecer.</p>
+    <div style="overflow:auto"><table>
+      <thead><tr><th>Asset</th><th>Aula</th><th>Versão</th><th>Estado</th><th>Tentativa</th><th>Worker</th><th>Lease</th><th>Fila → READY</th><th>Último erro</th></tr></thead>
+      <tbody id="jobs"></tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= PLAYER ================= -->
+  <section id="tab-player" class="grid-player" hidden>
+    <div class="panel">
+      <div class="row">
+        <span class="tag">Player</span>
+        <select id="plLesson" class="grow"></select>
+        <button id="plPlay" class="btn">▶ Play</button>
+      </div>
+      <video id="video" controls playsinline muted></video>
+      <div class="bufbar" title="Segundos de buffer à frente"><i id="bufFill"></i></div>
+      <div class="stats">
+        <div class="stat"><div class="k">Primeiro quadro</div><div class="v" id="hStartup">–</div></div>
+        <div class="stat"><div class="k">Variante</div><div class="v" id="hLevel">–</div></div>
+        <div class="stat"><div class="k">Buffer</div><div class="v" id="hBuffer">–</div></div>
+        <div class="stat"><div class="k">Banda estimada</div><div class="v" id="hBw">–</div></div>
+        <div class="stat"><div class="k">Travamentos</div><div class="v" id="hStalls">0</div></div>
+        <div class="stat"><div class="k">Rebuffer ratio</div><div class="v" id="hRebuf">0%</div></div>
+        <div class="stat"><div class="k">Hit ratio (sessão)</div><div class="v" id="hHit">–</div></div>
+        <div class="stat"><div class="k">Versão</div><div class="v" id="hVersion">–</div></div>
+      </div>
+      <p id="plMsg" class="muted"></p>
+    </div>
+    <div class="panel">
+      <span class="tag">Rede do aluno</span>
+      <div class="row">
+        <div class="seg" id="netSeg">
+          <button data-kbps="0">sem limite</button><button data-kbps="8000">8 Mb/s</button>
+          <button data-kbps="2000">2 Mb/s</button><button data-kbps="1000">1 Mb/s</button>
+        </div>
+        <div class="seg" id="abrSeg">
+          <button data-abr="auto" aria-pressed="true">ABR ligado</button><button data-abr="1080">travar em 1080p</button>
+        </div>
+      </div>
+      <span class="tag">Borda e origem</span>
+      <div class="row">
+        <div class="seg" id="latSeg">
+          <button data-ms="0">origem ao lado</button><button data-ms="150">150 ms</button><button data-ms="850">850 ms</button>
+        </div>
+        <button id="purge" class="btn ghost sm">Esvaziar o cache</button>
+        <button id="originDown" class="btn ghost sm">Derrubar a origem</button>
+      </div>
+      <p class="muted" id="edgeInfo">–</p>
+      <span class="tag">Requisições de mídia</span>
+      <div style="overflow:auto;max-height:330px"><table>
+        <thead><tr><th>Arquivo</th><th>Cache</th><th>TTFB</th><th>Total</th><th>Tamanho</th></tr></thead>
+        <tbody id="reqs"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ================= PROGRESSO ================= -->
+  <section id="tab-progresso" class="panel" hidden>
+    <div class="row">
+      <span class="tag">Progresso e retomada entre dispositivos</span>
+      <select id="prLesson" class="grow"></select>
+      <span class="pill" id="prMode">modo –</span>
+    </div>
+    <p class="hint">Cada "play" abre uma sessão: o servidor incrementa <span class="m">generation</span> e a sessão anterior deixa de valer. Dê play no celular, depois no notebook, e reenvie um checkpoint antigo do celular. Troque <span class="m">PROGRESS_MODE=lww</span> (<span class="m">make lab5</span> → editar <span class="m">.env</span> → <span class="m">make apply</span>) para ver a posição voltar no tempo.</p>
+    <div class="grid2">
+      <div class="dev" data-dev="celular"></div>
+      <div class="dev" data-dev="notebook"></div>
+    </div>
+    <div class="row">
+      <h3>Estado no servidor</h3>
+      <span class="m" id="prServer">–</span>
+    </div>
+    <div id="prLog" class="log">Dê play em um dos aparelhos.</div>
+  </section>
+</main>
+
+<script src="/hls.min.js"></script>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtMs = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const fmtBytes = (b) => b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.round(b / 1e3) + ' kB';
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method, credentials: 'same-origin',
+    headers: { 'X-User': $('#user').value, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  return { ok: res.ok, status: res.status, data };
+}
+function log(el, html) {
+  if (!el.dataset.started) { el.innerHTML = ''; el.dataset.started = 1; }
+  el.insertAdjacentHTML('beforeend', `<div>${new Date().toLocaleTimeString('pt-BR')}  ${html}</div>`);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ---------- abas ----------
+const tabs = $$('nav.tabs button');
+function showTab(name) {
+  tabs.forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === name));
+  $$('main > section').forEach((s) => (s.hidden = s.id !== 'tab-' + name));
+  history.replaceState(null, '', '#' + name);
+  if (name === 'catalogo') loadCourses();
+  if (name === 'fila') loadPipeline();
+  if (name === 'player') loadEdge();
+  if (name === 'progresso') refreshServerProgress();
+}
+tabs.forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+fetch('/config.json').then((r) => r.json()).then((c) => {
+  $('#grafana').href = `http://${location.hostname}:${c.grafana}`;
+  if (c.abr === 'locked') $$('#abrSeg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.abr === '1080'));
+}).catch(() => {});
+$('#user').addEventListener('change', () => { loadCourses(); refreshServerProgress(); });
+
+// ---------- catálogo ----------
+let lessonsIndex = [];
+async function loadCourses() {
+  const q = $('#q').value.trim();
+  const { data } = await api('GET', '/api/courses?q=' + encodeURIComponent(q));
+  const box = $('#courses');
+  if (!data?.length) { box.innerHTML = '<p class="muted">Nenhum curso encontrado.</p>'; return; }
+  const details = await Promise.all(data.map((c) => api('GET', '/api/courses/' + c.id).then((r) => r.data)));
+  if (!q) {
+    lessonsIndex = details.flatMap((c) => c.lessons.map((l) => ({ id: l.id, label: `${c.title} · ${l.position}. ${l.title}`, ready: l.assets.some((a) => a.active) })));
+    fillLessonSelects();
+  }
+  box.innerHTML = details.map((c, i) => `
+    <div class="course">
+      <div class="row"><h2 class="grow">${esc(c.title)}</h2>
+        <span class="pill ${c.enrolled ? 'ok' : 'bad'}">${c.enrolled ? 'matriculado' : 'sem matrícula'}</span>
+        ${q ? `<span class="pill">rank ${data[i].rank.toFixed(3)}</span>` : ''}</div>
+      <p class="muted">${esc(data[i].description)}</p>
+      ${c.lessons.map((l) => `
+        <div class="lesson">
+          <span class="grow">${l.position}. ${esc(l.title)}</span>
+          ${l.assets.length ? l.assets.map((a) => `<span class="pill ${a.status}" title="asset ${a.id}">v${a.version} ${a.status}${a.active ? ' · ativa' : ''}</span>
+            ${a.status === 'READY' && !a.active ? `<button class="btn ghost sm" data-activate="${l.id}:${a.id}">ativar v${a.version}</button>` : ''}`).join('') : '<span class="pill">sem vídeo</span>'}
+          <button class="btn ghost sm" data-upload="${l.id}">enviar vídeo</button>
+          <button class="btn sm" data-play="${l.id}">▶ assistir</button>
+        </div>`).join('')}
+    </div>`).join('');
+}
+let qTimer;
+$('#q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(loadCourses, 200); });
+$('#courses').addEventListener('click', async (e) => {
+  const t = e.target;
+  if (t.dataset.play) { $('#plLesson').value = t.dataset.play; showTab('player'); play(); }
+  if (t.dataset.upload) { $('#upLesson').value = t.dataset.upload; showTab('upload'); }
+  if (t.dataset.activate) {
+    const [lesson, asset] = t.dataset.activate.split(':');
+    await api('PUT', `/api/lessons/${lesson}/active`, { assetId: Number(asset) });
+    loadCourses();
+  }
+});
+function fillLessonSelects() {
+  for (const id of ['upLesson', 'plLesson', 'prLesson']) {
+    const sel = $('#' + id), cur = sel.value;
+    sel.innerHTML = lessonsIndex.map((l) => `<option value="${l.id}">${esc(l.label)}${id !== 'upLesson' && !l.ready ? ' (sem vídeo)' : ''}</option>`).join('');
+    if (cur) sel.value = cur;
+  }
+}
+
+// ---------- upload multipart ----------
+const up = { file: null, session: null, abort: null, done: new Set() };
+const upLog = (h) => log($('#upLog'), h);
+function setFile(f) {
+  up.file = f;
+  $('#upFileInfo').textContent = `${f.name} — ${fmtBytes(f.size)}`;
+  $('#upStart').disabled = false;
+  $('#upResume').disabled = !up.session;
+}
+$('#upFile').addEventListener('change', (e) => e.target.files[0] && setFile(e.target.files[0]));
+$('#upSample').addEventListener('click', async () => {
+  $('#upFileInfo').textContent = 'Baixando o vídeo de exemplo…';
+  const res = await fetch('/api/sample');
+  if (!res.ok) { $('#upFileInfo').textContent = 'O vídeo de exemplo ainda está sendo gerado. Tente em alguns segundos.'; return; }
+  setFile(new File([await res.blob()], 'sample.mp4', { type: 'video/mp4' }));
+});
+function drawParts(total, sending = new Set(), lost = new Set()) {
+  $('#upParts').innerHTML = Array.from({ length: total }, (_, i) => {
+    const n = i + 1, c = up.done.has(n) ? 'done' : sending.has(n) ? 'sending' : lost.has(n) ? 'lost' : '';
+    return `<div class="part ${c}">${n}</div>`;
+  }).join('');
+}
+$('#upStart').addEventListener('click', async () => {
+  const body = { lessonId: Number($('#upLesson').value), size: up.file.size };
+  upLog(`<b>POST /api/uploads</b> ${esc(JSON.stringify(body))}`);
+  const r = await api('POST', '/api/uploads', body);
+  if (!r.ok) return upLog(`<span class="e">${r.status} ${esc(r.data?.error)}</span>`);
+  up.session = r.data; up.done = new Set();
+  upLog(`→ uploadId <b>${r.data.uploadId.slice(0, 8)}…</b>, asset <b>${r.data.assetId}</b> (v${r.data.version}), ${r.data.parts} partes de ${fmtBytes(r.data.partSize)}`);
+  await sendParts(Number($('#upDrop').value));
+});
+$('#upResume').addEventListener('click', () => sendParts(0));
+$('#upAgain').addEventListener('click', complete);
+
+async function sendParts(dropAtPct) {
+  const s = up.session;
+  $('#upStart').disabled = $('#upResume').disabled = true;
+  // O storage é a fonte da verdade sobre o que já chegou.
+  const st = await api('GET', '/api/uploads/' + s.uploadId);
+  up.done = new Set(st.data.stored.map((p) => p.partNumber));
+  upLog(`<b>GET /api/uploads/${s.uploadId.slice(0, 8)}…</b> → ${up.done.size} de ${s.parts} partes já gravadas`);
+  const missing = Array.from({ length: s.parts }, (_, i) => i + 1).filter((n) => !up.done.has(n));
+  if (!missing.length) return complete();
+  const urls = await api('POST', `/api/uploads/${s.uploadId}/parts`, { partNumbers: missing });
+  if (!urls.ok) { upLog(`<span class="e">${urls.status} ${esc(urls.data?.error)}</span>`); $('#upStart').disabled = false; return; }
+  upLog(`<b>POST …/parts</b> → ${missing.length} URLs assinadas (valem ${urls.data.expiresIn / 60} min)`);
+
+  up.abort = new AbortController();
+  const sending = new Set(), queue = [...missing], delay = Number($('#upDelay').value);
+  let dropped = false;
+  const worker = async () => {
+    while (queue.length && !dropped) {
+      const n = queue.shift();
+      sending.add(n); drawParts(s.parts, sending);
+      try {
+        await sleep(delay);
+        const blob = up.file.slice((n - 1) * s.partSize, n * s.partSize);
+        const res = await fetch(urls.data.urls[n], { method: 'PUT', body: blob, signal: up.abort.signal });
+        if (!res.ok) throw new Error('storage respondeu ' + res.status);
+        up.done.add(n);
+        upLog(`PUT parte ${n} → storage <span class="g">${res.status}</span> ETag ${esc((res.headers.get('ETag') || '').slice(0, 14))}…`);
+      } catch (err) {
+        if (!dropped) upLog(`<span class="e">parte ${n}: ${esc(err.message)}</span>`);
+      }
+      sending.delete(n); drawParts(s.parts, sending);
+      if (dropAtPct && !dropped && up.done.size / s.parts >= dropAtPct / 100) {
+        dropped = true; up.abort.abort();
+        upLog(`<span class="y">✂ conexão derrubada com ${up.done.size} de ${s.parts} partes. O asset continua o mesmo: clique em "Retomar".</span>`);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Number($('#upConc').value) }, worker));
+  drawParts(s.parts, new Set(), new Set(dropped ? [...missing].filter((n) => !up.done.has(n)) : []));
+  $('#upStart').disabled = false;
+  if (up.done.size === s.parts) return complete();
+  $('#upResume').disabled = false;
+}
+async function complete() {
+  const s = up.session;
+  upLog(`<b>POST …/complete</b>`);
+  const r = await api('POST', `/api/uploads/${s.uploadId}/complete`);
+  if (!r.ok) { upLog(`<span class="e">${r.status} ${esc(r.data?.error)}</span>`); $('#upResume').disabled = false; return; }
+  upLog(r.data.repeated
+    ? `→ <span class="y">já estava concluído</span>: repetir o complete não cria outro asset nem outro job.`
+    : `→ <span class="g">COMPLETED</span>. Asset ${r.data.assetId} foi para a fila. Acompanhe na aba "Fila e workers".`);
+  $('#upAgain').disabled = false; $('#upStart').disabled = false;
+}
+
+// ---------- fila ----------
+async function loadPipeline() {
+  const { data } = await api('GET', '/api/pipeline');
+  if (!data) return;
+  const q = data.queue;
+  $('#qQueued').textContent = q.queued; $('#qProc').textContent = q.processing; $('#qDone').textContent = q.done;
+  $('#qFailed').textContent = q.failed; $('#qFailed').className = 'v' + (q.failed ? ' bad' : '');
+  $('#qAge').textContent = Math.round(q.oldestAgeS) + ' s'; $('#qAge').className = 'v' + (q.oldestAgeS > 60 ? ' bad' : q.oldestAgeS > 20 ? ' warn' : '');
+  $('#jobs').innerHTML = data.jobs.map((j) => `<tr>
+    <td class="m">a${j.assetId}</td><td>${esc(j.lesson)}</td><td class="m">v${j.version}${j.active ? ' ·ativa' : ''}</td>
+    <td><span class="pill ${j.status}">${j.status}</span></td><td class="m">${j.attempt ?? '–'}</td>
+    <td class="m">${esc(j.worker ?? '–')}</td><td class="m">${j.jobState === 'PROCESSING' ? j.leaseS + ' s' : '–'}</td>
+    <td class="m">${j.totalS != null ? j.totalS + ' s' : '–'}</td><td class="m" style="color:var(--bad)">${esc(j.lastError ?? '')}</td></tr>`).join('');
+}
+$('#burst').addEventListener('click', async () => { await api('POST', '/api/admin/burst?n=' + $('#burstN').value); loadPipeline(); });
+setInterval(() => { if (!$('#tab-fila').hidden) loadPipeline(); }, 1000);
+
+// ---------- borda ----------
+async function loadEdge(body) {
+  const res = await fetch('/edge/admin/state', body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const s = await res.json();
+  $$('#netSeg button').forEach((b) => b.setAttribute('aria-pressed', Number(b.dataset.kbps) === s.netKbps));
+  $$('#latSeg button').forEach((b) => b.setAttribute('aria-pressed', Number(b.dataset.ms) === s.originLatencyMs));
+  $('#originDown').textContent = s.originDown ? 'Religar a origem' : 'Derrubar a origem';
+  $('#originDown').classList.toggle('btn', true); $('#originDown').style.borderColor = s.originDown ? 'var(--bad)' : '';
+  $('#edgeInfo').innerHTML = `Chave de cache: <span class="m">${esc(s.cacheKey)}</span> · no cache: <span class="m">${s.entries} objetos, ${fmtBytes(s.bytes)}</span>${s.originDown ? ' · <span style="color:var(--bad)">origem fora do ar</span>' : ''}`;
+  return s;
+}
+$('#netSeg').addEventListener('click', (e) => e.target.dataset.kbps && loadEdge({ netKbps: Number(e.target.dataset.kbps) }));
+$('#latSeg').addEventListener('click', (e) => e.target.dataset.ms && loadEdge({ originLatencyMs: Number(e.target.dataset.ms) }));
+$('#originDown').addEventListener('click', async () => { const s = await loadEdge(); loadEdge({ originDown: !s.originDown }); });
+$('#purge').addEventListener('click', async () => { await fetch('/edge/admin/purge', { method: 'POST' }); loadEdge(); });
+setInterval(() => { if (!$('#tab-player').hidden) loadEdge(); }, 3000);
+
+// ---------- player ----------
+const video = $('#video');
+const pl = { hls: null, t0: 0, started: false, stalls: 0, stallMs: 0, stallAt: 0, hit: 0, miss: 0, lesson: 0, gen: 0, seq: 0, watchedMs: 0, lastTick: 0, sent: { stall: 0, watched: 0 } };
+
+async function play() {
+  const lesson = Number($('#plLesson').value);
+  if (pl.hls) pl.hls.destroy();
+  Object.assign(pl, { started: false, stalls: 0, stallMs: 0, stallAt: 0, hit: 0, miss: 0, lesson, watchedMs: 0, lastTick: 0, sent: { stall: 0, watched: 0 } });
+  $('#reqs').innerHTML = ''; $('#hStartup').textContent = '…'; $('#hStartup').className = 'v'; $('#plMsg').textContent = '';
+  pl.t0 = performance.now(); // o relógio do "primeiro quadro" começa no clique
+
+  // 1. A API confere matrícula e versão ativa e devolve o manifest + cookie de acesso.
+  const pb = await api('POST', `/api/lessons/${lesson}/playback`);
+  if (!pb.ok) { $('#plMsg').innerHTML = `<span style="color:var(--bad)">${pb.status} — ${esc(pb.data?.error)}</span>`; $('#hStartup').textContent = '–'; return; }
+  $('#hVersion').textContent = 'v' + pb.data.version;
+  // 2. Abre a sessão de progresso: generation sobe e a sessão anterior deixa de valer.
+  const sess = await api('POST', `/api/lessons/${lesson}/progress/session`);
+  pl.gen = sess.data.generation; pl.seq = 0;
+  const resumeAt = sess.data.positionMs / 1000;
+
+  if (!window.Hls || !Hls.isSupported()) { $('#plMsg').textContent = 'Este navegador não tem suporte a MSE; use Chrome, Edge ou Firefox.'; return; }
+  // Buffer curto de propósito: com 30 s de folga, a queda de banda demoraria a aparecer.
+  const hls = (pl.hls = new Hls({ maxBufferLength: 12, maxMaxBufferLength: 16, startPosition: resumeAt > 1 ? resumeAt : -1 }));
+  hls.on(Hls.Events.MANIFEST_PARSED, () => { applyAbr(); video.play().catch(() => {}); });
+  // Posição salva além do fim (a aula ganhou um vídeo mais curto): recomeça do zero.
+  hls.once(Hls.Events.LEVEL_LOADED, (_, d) => { if (resumeAt > d.details.totalduration - 3) hls.startLoad(0); });
+  hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => { const l = hls.levels[d.level]; $('#hLevel').textContent = l.height + 'p'; sendTelemetry(l.bitrate); });
+  hls.on(Hls.Events.FRAG_LOADED, (_, d) => {
+    const st = d.frag.stats, xhr = d.networkDetails, cache = xhr?.getResponseHeader?.('X-Cache') || '?';
+    cache === 'HIT' ? pl.hit++ : pl.miss++;
+    const name = d.frag.url.split('/').slice(-2).join('/');
+    $('#reqs').insertAdjacentHTML('afterbegin', `<tr><td class="m">${esc(name)}</td><td><span class="pill ${cache}">${cache}</span></td>
+      <td class="m">${Math.round(st.loading.first - st.loading.start)} ms</td><td class="m">${Math.round(st.loading.end - st.loading.start)} ms</td><td class="m">${fmtBytes(st.total)}</td></tr>`);
+    while ($('#reqs').children.length > 40) $('#reqs').lastChild.remove();
+    $('#hHit').textContent = Math.round((100 * pl.hit) / (pl.hit + pl.miss)) + '%';
+  });
+  hls.on(Hls.Events.ERROR, (_, d) => {
+    if (d.details === 'bufferStalledError') return;
+    $('#plMsg').innerHTML = `<span style="color:var(--${d.fatal ? 'bad' : 'warn'})">${esc(d.details)}${d.response?.code ? ' (HTTP ' + d.response.code + ')' : ''}</span>`;
+    if (d.fatal && d.type === Hls.ErrorTypes.NETWORK_ERROR) setTimeout(() => hls.startLoad(), 2000);
+  });
+  hls.loadSource(pb.data.manifestUrl);
+  hls.attachMedia(video);
+}
+// "Travar em 1080p" imita um player que não adapta: começa pela variante mais leve,
+// como qualquer player, e depois do primeiro quadro fica preso na mais pesada.
+function applyAbr() {
+  if (!pl.hls) return;
+  const lock = $('#abrSeg button[aria-pressed="true"]').dataset.abr === '1080';
+  // loadLevel vale para os próximos segmentos e não descarta o que já está no buffer.
+  if (!lock) pl.hls.loadLevel = -1;
+  else pl.hls.loadLevel = pl.started ? pl.hls.levels.length - 1 : 0;
+}
+$('#abrSeg').addEventListener('click', (e) => { if (!e.target.dataset.abr) return; $$('#abrSeg button').forEach((b) => b.setAttribute('aria-pressed', b === e.target)); applyAbr(); });
+$('#plPlay').addEventListener('click', play);
+
+video.addEventListener('playing', () => {
+  if (!pl.started && pl.hls) {
+    pl.started = true;
+    const ms = performance.now() - pl.t0;
+    $('#hStartup').textContent = (ms / 1000).toFixed(2) + ' s';
+    $('#hStartup').className = 'v ' + (ms < 2500 ? 'ok' : 'bad'); // SLO da aula: p95 < 2,5 s
+    sendTelemetry(0, ms);
+    applyAbr();
+  }
+  if (pl.stallAt) { pl.stallMs += performance.now() - pl.stallAt; pl.stallAt = 0; }
+});
+// Travamento = o player ficou sem buffer depois de já ter começado. Seek não conta.
+video.addEventListener('waiting', () => { if (pl.started && !video.seeking && !pl.stallAt) { pl.stallAt = performance.now(); pl.stalls++; } });
+video.addEventListener('pause', () => checkpoint());
+video.addEventListener('seeked', () => checkpoint());
+video.addEventListener('ended', () => checkpoint(true));
+
+function checkpoint(completed = false) {
+  if (!pl.hls || !pl.started) return;
+  pl.seq++;
+  api('PUT', `/api/lessons/${pl.lesson}/progress`, { generation: pl.gen, seq: pl.seq, positionMs: Math.round(video.currentTime * 1000), completed })
+    .then((r) => { if (r.status === 409) $('#plMsg').innerHTML = '<span style="color:var(--warn)">Checkpoint recusado: outra sessão deste aluno assumiu a aula.</span>'; });
+}
+function sendTelemetry(bitrateBps = 0, startupMs = 0) {
+  const stall = pl.stallMs + (pl.stallAt ? performance.now() - pl.stallAt : 0);
+  api('POST', '/api/telemetry', { startupMs, bitrateBps, stallMs: stall - pl.sent.stall, watchedMs: pl.watchedMs - pl.sent.watched });
+  pl.sent = { stall, watched: pl.watchedMs };
+}
+setInterval(() => { // HUD
+  if (!pl.hls) return;
+  const now = performance.now();
+  if (pl.lastTick && !video.paused && !pl.stallAt && pl.started) pl.watchedMs += now - pl.lastTick;
+  pl.lastTick = now;
+  let ahead = 0;
+  for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= video.currentTime + 0.1 && video.buffered.end(i) > video.currentTime) ahead = video.buffered.end(i) - video.currentTime;
+  $('#hBuffer').textContent = ahead.toFixed(1) + ' s'; $('#hBuffer').className = 'v ' + (ahead < 2 ? 'bad' : ahead < 6 ? 'warn' : 'ok');
+  $('#bufFill').style.width = Math.min(100, (ahead / 16) * 100) + '%'; $('#bufFill').style.background = ahead < 2 ? 'var(--bad)' : ahead < 6 ? 'var(--warn)' : 'var(--ok)';
+  $('#hBw').textContent = (pl.hls.bandwidthEstimate / 1e6).toFixed(1) + ' Mb/s';
+  const stall = pl.stallMs + (pl.stallAt ? now - pl.stallAt : 0);
+  $('#hStalls').textContent = `${pl.stalls} · ${(stall / 1000).toFixed(1)} s`; $('#hStalls').className = 'v' + (pl.stalls ? ' bad' : '');
+  const ratio = stall / Math.max(1, pl.watchedMs + stall);
+  $('#hRebuf').textContent = (100 * ratio).toFixed(1) + '%'; $('#hRebuf').className = 'v' + (ratio > 0.01 ? ' bad' : '');
+}, 300);
+setInterval(() => { if (pl.hls && pl.started) { sendTelemetry(); if (!video.paused) checkpoint(); } }, 5000);
+
+// ---------- dois dispositivos ----------
+const devs = {};
+const prLog = (h) => log($('#prLog'), h);
+for (const el of $$('.dev')) {
+  const name = el.dataset.dev, d = (devs[name] = { gen: 0, seq: 0, last: null, el });
+  el.innerHTML = `<div class="row"><h2 class="grow">${name === 'celular' ? '📱 Celular' : '💻 Notebook'}</h2><span class="pill" data-k="sess">sem sessão</span></div>
+    <label class="f">Posição do vídeo: <span class="m" data-k="pos">0:00</span><input type="range" min="0" max="900" value="${name === 'celular' ? 660 : 260}" data-k="slider"></label>
+    <div class="row"><button class="btn sm" data-a="play">▶ Play (abre sessão)</button><button class="btn ghost sm" data-a="send" disabled>Enviar checkpoint</button>
+    <button class="btn ghost sm" data-a="resend" disabled>Reenviar o último (atrasado)</button></div>`;
+  const slider = $('[data-k=slider]', el), posEl = $('[data-k=pos]', el);
+  const sync = () => (posEl.textContent = fmtMs(slider.value * 1000)); slider.addEventListener('input', sync); sync();
+  el.addEventListener('click', async (e) => {
+    const a = e.target.dataset.a, lesson = $('#prLesson').value;
+    if (a === 'play') {
+      const r = await api('POST', `/api/lessons/${lesson}/progress/session`);
+      d.gen = r.data.generation; d.seq = 0;
+      slider.value = Math.round(r.data.positionMs / 1000); sync();
+      $('[data-k=sess]', el).textContent = 'generation ' + d.gen; $('[data-k=sess]', el).className = 'pill ok';
+      $$('[data-a=send]', el).forEach((b) => (b.disabled = false));
+      prLog(`<b>${name}</b> POST …/progress/session → generation <b>${d.gen}</b>, retoma em ${fmtMs(r.data.positionMs)}`);
+    }
+    if (a === 'send' || a === 'resend') {
+      if (a === 'send') { d.seq++; d.last = { generation: d.gen, seq: d.seq, positionMs: slider.value * 1000 }; $('[data-a=resend]', el).disabled = false; }
+      const r = await api('PUT', `/api/lessons/${lesson}/progress`, d.last);
+      const body = `{ generation: ${d.last.generation}, seq: ${d.last.seq}, positionMs: ${d.last.positionMs} } (${fmtMs(d.last.positionMs)})`;
+      prLog(r.ok ? `<b>${name}</b> PUT ${body} → <span class="g">204 gravado</span>`
+        : `<b>${name}</b> PUT ${body} → <span class="e">409 recusado</span>: servidor está em generation ${r.data.current.generation}, seq ${r.data.current.seq}`);
+      if (!r.ok && r.data.current.generation !== d.gen) { $('[data-k=sess]', el).textContent = `generation ${d.gen} (vencida)`; $('[data-k=sess]', el).className = 'pill bad'; }
+    }
+    refreshServerProgress();
+  });
+}
+async function refreshServerProgress() {
+  if (!$('#prLesson').value) return;
+  const [p, c] = await Promise.all([api('GET', `/api/lessons/${$('#prLesson').value}/progress`), api('GET', '/api/config')]);
+  $('#prServer').textContent = `generation ${p.data.generation} · seq ${p.data.seq} · posição ${fmtMs(p.data.positionMs)}${p.data.completed ? ' · concluída' : ''}`;
+  $('#prMode').textContent = 'PROGRESS_MODE=' + c.data.progressMode; $('#prMode').className = 'pill ' + (c.data.progressMode === 'lww' ? 'bad' : 'ok');
+}
+$('#prLesson').addEventListener('change', refreshServerProgress);
+
+// ---------- início ----------
+loadCourses().then(() => showTab(location.hash.slice(1) || 'catalogo'));
+</script>
+</body>
+</html>

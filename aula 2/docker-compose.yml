@@ -1,0 +1,152 @@
+# System Design na Prática — Aula 02: plataforma de cursos e vídeo sob demanda.
+# O arquivo .env (copiado de labs/labN.env pelo `make labN`) liga os experimentos.
+name: sd-aula02
+
+x-vod: &vod
+  image: sd-aula02-vod   # api, worker e edge usam a mesma imagem
+  build: ./app
+
+x-env: &env
+  DATABASE_URL: postgres://vod:vod@pg:5432/vod
+  S3_ENDPOINT: s3:7070
+  S3_ACCESS_KEY: lab
+  S3_SECRET_KEY: labsecret
+  PLAYBACK_SECRET: segredo-so-do-laboratorio
+
+services:
+  # ---------- plano de controle ----------
+  api:
+    <<: *vod
+    command: api
+    environment:
+      <<: *env
+      PROGRESS_MODE: ${PROGRESS_MODE:-conditional}
+      PART_SIZE_MB: ${PART_SIZE_MB:-5}
+      PLAYBACK_TTL_S: ${PLAYBACK_TTL_S:-3600}
+      SAMPLE_SECONDS: ${SAMPLE_SECONDS:-90}
+      BURST_SECONDS: ${BURST_SECONDS:-12}
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+    ports: ["${API_PORT:-8080}:8080"]
+    depends_on:
+      pg: { condition: service_healthy }
+      s3: { condition: service_started }
+    healthcheck:
+      test: /vod health 8080
+      interval: 2s
+      retries: 60
+
+  # ---------- ingestão assíncrona ----------
+  # `WORKERS=3` no .env (ou `make apply WORKERS=3`) sobe mais consumidores da fila.
+  worker:
+    <<: *vod
+    command: worker
+    cpus: ${WORKER_CPUS:-1}   # 1 CPU por worker: a capacidade de encode vira conta de slots
+    deploy:
+      replicas: ${WORKERS:-1}
+    environment:
+      <<: *env
+      DB_POOL_MAX: 4
+      LEASE_S: ${LEASE_S:-20}
+      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+      ENCODE_EXTRA_S: ${ENCODE_EXTRA_S:-0}
+      ENCODE_PRESET: ${ENCODE_PRESET:-ultrafast}
+      FAULT: ${FAULT:-none}
+      VALIDATE: ${VALIDATE:-true}
+    depends_on:
+      api: { condition: service_healthy }
+
+  # ---------- entrega ----------
+  edge:
+    <<: *vod
+    command: edge
+    environment:
+      <<: *env
+      CACHE_KEY: ${CACHE_KEY:-path}
+      CACHE_TTL_S: ${CACHE_TTL_S:-3600}
+      CACHE_MAX_MB: ${CACHE_MAX_MB:-512}
+      ORIGIN_LATENCY_MS: ${ORIGIN_LATENCY_MS:-150}
+      NET_KBPS: ${NET_KBPS:-0}
+    ports: ["${EDGE_PORT:-8081}:8081"]
+    depends_on:
+      api: { condition: service_healthy }
+
+  # ---------- dados ----------
+  pg:
+    image: postgres:16-alpine
+    command: postgres -c max_connections=200
+    environment:
+      POSTGRES_USER: vod
+      POSTGRES_PASSWORD: vod
+      POSTGRES_DB: vod
+    volumes:
+      - ./db/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U vod -h 127.0.0.1
+      interval: 2s
+      retries: 30
+
+  # Storage de objetos com API S3 (Versity Gateway sobre um diretório).
+  # Dois buckets: raw (originais privados) e vod (pacotes HLS versionados).
+  s3:
+    image: versity/versitygw:v1.11.0
+    command: --access lab --secret labsecret posix /data
+    volumes: ["s3data:/data"]
+
+  # ---------- observabilidade ----------
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver   # o k6 envia as métricas dele para cá
+      - --storage.tsdb.retention.time=2d
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports: ["${PROM_PORT:-9090}:9090"]
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/vod.json
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 1s
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["${GRAFANA_PORT:-3000}:3000"]
+    depends_on: [prometheus]
+
+  # ---------- interface do laboratório ----------
+  # Catálogo, upload, fila, player com HUD e dois dispositivos, numa página só.
+  ui:
+    image: sd-aula02-ui
+    build: ./ui
+    environment:
+      GRAFANA_PORT: ${GRAFANA_PORT:-3000}
+      PROM_PORT: ${PROM_PORT:-9090}
+      PLAYER_ABR: ${PLAYER_ABR:-auto}   # auto | locked: o player começa travado em 1080p (Lab 6)
+    volumes:
+      - ./ui/html:/usr/share/nginx/html:ro   # edite o index.html e recarregue a página
+      - ./ui/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports: ["${UI_PORT:-8090}:80"]
+
+  # ---------- carga ----------
+  k6:
+    image: grafana/k6:2.4.0
+    profiles: [tools]
+    volumes: ["./k6:/scripts:ro"]
+    environment:
+      API: http://api:8080
+      EDGE: http://edge:8081
+      K6_OUT: experimental-prometheus-rw
+      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_STATS: p(50),p(95),p(99)
+      K6_PROMETHEUS_RW_PUSH_INTERVAL: 2s
+
+volumes:
+  pgdata:
+  s3data:
+  promdata:

@@ -1,0 +1,48 @@
+# Interface do laboratório (http://localhost:8090). Uma origem só para o navegador:
+#   /api/   -> API (plano de controle)
+#   /vod/   -> borda (a CDN do lab): playlists e segmentos
+#   /edge/  -> administração da borda: banda, latência da origem, purge
+#   /s3/    -> storage: é para cá que o navegador envia as partes do upload.
+#              A API assina as URLs para o host interno do storage; por isso o Host fixo.
+# Mesma origem = sem CORS, e o cookie de acesso ao vídeo acompanha as requisições.
+
+# Resolve os nomes a cada requisição: a interface sobe mesmo se um destino não existir.
+resolver 127.0.0.11 valid=5s ipv6=off;
+
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+    add_header Cache-Control "no-store";
+    proxy_connect_timeout 2s;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+
+    location = /config.json {
+        default_type application/json;
+        return 200 '{"grafana":${GRAFANA_PORT},"prom":${PROM_PORT},"abr":"${PLAYER_ABR}"}';
+    }
+    location = /hls.min.js { alias /usr/share/nginx/vendor/hls.min.js; }
+
+    location /api/ {
+        set $up http://api:8080;
+        proxy_pass $up;
+    }
+    location /vod/ {
+        set $up http://edge:8081;
+        proxy_pass $up;
+        proxy_buffering off;   # a banda simulada pela borda chega ao player sem amortecimento
+    }
+    location /edge/ {
+        set $up http://edge:8081;
+        proxy_pass $up;
+    }
+    location /s3/ {
+        set $up http://s3:7070;
+        rewrite ^/s3/(.*)$ /$1 break;
+        proxy_pass $up;
+        proxy_set_header Host s3:7070;
+        client_max_body_size 0;          # as partes são grandes
+        proxy_request_buffering off;     # e seguem direto para o storage
+    }
+}
