@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Simulador de Vídeo sob Demanda</title>
+<style>
+  /* Layout: uma barra de abas e um painel de experimento por vez; controles à esquerda, medida à direita. */
+  :root {
+    color-scheme: dark;
+    --bg: #0F1720; --panel: #16212E; --line: #263648; --ink: #F2F5F7; --ink2: #A9B8C6; --ink3: #7F92A5;
+    --accent: #FF8A3D; --blue: #5BB8FF; --ok: #7FDBA0; --bad: #FF6B6B; --warn: #FFD166; --field: #0A1118;
+    --mono: ui-monospace, "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    --sans: Inter, "Segoe UI", system-ui, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); padding-block: 22px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  main { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  .eyebrow { font: 13px var(--mono); letter-spacing: 3px; color: var(--accent); margin: 0 0 6px; }
+  h1 { font-size: 28px; line-height: 1.15; margin: 0; letter-spacing: -0.4px; text-wrap: balance; }
+  h2 { font-size: 18px; margin: 0; } h3 { font-size: 14px; margin: 0; color: var(--ink2); }
+  p { margin: 0; }
+  .muted { color: var(--ink2); font-size: 13.5px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1; min-width: 0; }
+  nav.tabs { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  nav.tabs button { background: transparent; border: 0; border-bottom: 3px solid transparent; color: var(--ink2); padding: 9px 13px; font: inherit; cursor: pointer; }
+  nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 18px; }
+  @media (max-width: 900px) { .grid2, .split { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .tag { font: 12px var(--mono); letter-spacing: 2px; color: var(--blue); text-transform: uppercase; }
+  input[type=number], select { background: var(--field); color: var(--ink); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font: 14px var(--mono); width: 92px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .btn { background: var(--accent); color: #0F1720; border: 0; border-radius: 9px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+  .sm { padding: 5px 10px; font-size: 13px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; flex-wrap: wrap; }
+  .seg button { background: transparent; color: var(--ink2); border: 0; padding: 7px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--blue); color: #0F1720; font-weight: 600; }
+  label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink3); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; }
+  .stat { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
+  .stat .k { font-size: 12px; color: var(--ink3); } .stat .v { font: 600 18px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .v.bad { color: var(--bad); } .v.ok { color: var(--ok); } .v.warn { color: var(--warn); }
+  .log { background: var(--field); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font: 12.5px/1.55 var(--mono); color: var(--ink2); max-height: 230px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .log b { color: var(--ink); } .log .e { color: var(--bad); } .log .g { color: var(--ok); } .log .y { color: var(--warn); }
+  .hint { border-left: 3px solid var(--accent); padding: 6px 12px; color: var(--ink2); font-size: 13.5px; background: rgba(255,138,61,.06); border-radius: 0 8px 8px 0; }
+  .pill { display: inline-block; font: 12px var(--mono); padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--ink2); white-space: nowrap; }
+  .pill.ok { color: var(--ok); border-color: #2f6b49; } .pill.bad { color: var(--bad); border-color: #7a3030; }
+  .course { border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .m { font-family: var(--mono); font-size: 13px; }
+  canvas { width: 100%; height: 200px; background: var(--field); border: 1px solid var(--line); border-radius: 10px; display: block; }
+  .parts { display: flex; flex-wrap: wrap; gap: 3px; }
+  .part { width: 15px; height: 15px; border-radius: 3px; background: var(--field); border: 1px solid var(--line); }
+  .part.s { border-color: var(--warn); background: #4a3d14; } .part.d { background: #1f4a35; border-color: #2f6b49; } .part.l { border-color: var(--bad); }
+  .wk { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: 12.5px var(--mono); min-width: 150px; flex: 1; }
+  .wk.dead { border-color: var(--bad); color: var(--bad); } .wk.paused { border-color: var(--warn); }
+  .bar { height: 8px; background: #0F1720; border-radius: 99px; overflow: hidden; margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--ok); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; color: var(--ink3); font-weight: 500; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .dev { border: 1px solid var(--line); border-radius: 11px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">SYSTEM DESIGN NA PRÁTICA · AULA 02</p>
+    <h1>Simulador: plataforma de vídeo sob demanda</h1>
+    <p class="muted" style="margin-top:6px">Os mesmos experimentos do laboratório, com o tempo acelerado e sem instalar nada. Os modelos usam as contas da aula; o lab com Docker roda o sistema de verdade.</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button data-tab="arq">Arquitetura</button><button data-tab="login">Login e IdP</button><button data-tab="upload">Upload</button>
+    <button data-tab="fila">Fila e workers</button><button data-tab="player">Player e ABR</button><button data-tab="cdn">CDN</button><button data-tab="prog">Dois dispositivos</button>
+  </nav>
+
+  <section id="tab-arq" class="panel"></section>
+
+  <!-- ============ LOGIN ============ -->
+  <section id="tab-login" class="grid2" hidden>
+    <div class="panel">
+      <span class="tag">Antes de tudo: quem é você?</span>
+      <p class="muted">Autenticar é provar quem a pessoa é. Autorizar é decidir o que ela pode fazer. A plataforma delega a primeira parte a um provedor de identidade (IdP) e fica com a segunda.</p>
+      <div class="seg" id="lgMethod"><button data-k="senha+2fa" aria-pressed="true">senha + código (2FA)</button><button data-k="passkey">passkey (biometria)</button></div>
+      <div class="row"><button class="btn" data-user="ana">Entrar como ana</button><button class="btn ghost" data-user="bia">Entrar como bia</button></div>
+      <div id="lgLog" class="log">Escolha um método e entre.</div>
+      <p class="hint">ana tem matrícula em tudo. bia não comprou o curso 1: ela se autentica do mesmo jeito, e a plataforma nega o play.</p>
+    </div>
+    <div class="panel">
+      <span class="tag">Por que não implementar por conta própria</span>
+      <div class="scroll"><table>
+        <tr><th>O que parece simples</th><th>O que vem junto</th></tr>
+        <tr><td>Guardar senha</td><td>hash lento com sal, vazamentos, rotação, senhas já comprometidas</td></tr>
+        <tr><td>Segundo fator</td><td>TOTP, SMS e seus golpes, códigos de reserva, troca de aparelho</td></tr>
+        <tr><td>Biometria</td><td>não é sua: fica no aparelho. Você integra passkeys (WebAuthn) e recebe uma assinatura</td></tr>
+        <tr><td>"Esqueci a senha"</td><td>o caminho mais atacado do sistema inteiro</td></tr>
+        <tr><td>Força bruta</td><td>limite por conta e por IP, bloqueio, detecção de anomalia</td></tr>
+        <tr><td>Login social e corporativo</td><td>OIDC e SAML com cada provedor, um por um</td></tr>
+      </table></div>
+      <p class="muted">Com um IdP (Keycloak, Auth0, Cognito, Entra ID) a plataforma recebe um token assinado e confere a assinatura. Nenhuma senha passa pelo seu código, nem pelo seu banco, nem pelos seus logs.</p>
+    </div>
+  </section>
+
+  <!-- ============ UPLOAD ============ -->
+  <section id="tab-upload" class="split" hidden>
+    <div class="panel">
+      <span class="tag">Upload direto e retomável</span>
+      <div class="row">
+        <label class="f">Arquivo (GB)<input id="upSize" type="number" value="2" min="0.2" max="20" step="0.2"></label>
+        <label class="f">Parte (MiB)<input id="upPart" type="number" value="16" min="5" max="256"></label>
+        <label class="f">Banda (Mb/s)<input id="upBw" type="number" value="40" min="1" max="1000"></label>
+        <label class="f">Queda em (%)<input id="upDrop" type="number" value="95" min="0" max="99"></label>
+      </div>
+      <div class="row"><button id="upGo" class="btn">Enviar</button><button id="upRes" class="btn ghost" disabled>Retomar o que faltou</button></div>
+      <div class="stats">
+        <div class="stat"><div class="k">Partes</div><div class="v" id="upN">–</div></div>
+        <div class="stat"><div class="k">Tempo de upload</div><div class="v" id="upT">–</div></div>
+        <div class="stat"><div class="k">Reenvio com multipart</div><div class="v ok" id="upRe">–</div></div>
+        <div class="stat"><div class="k">Reenvio sem multipart</div><div class="v bad" id="upRe0">–</div></div>
+      </div>
+      <p class="hint">A API recebe três chamadas pequenas. Os bytes vão direto ao storage, por URLs assinadas que valem para uma parte cada.</p>
+    </div>
+    <div class="panel"><span class="tag">Partes no storage</span><div id="upGrid" class="parts"></div><div id="upLog" class="log">Clique em Enviar.</div></div>
+  </section>
+
+  <!-- ============ FILA ============ -->
+  <section id="tab-fila" class="split" hidden>
+    <div class="panel">
+      <span class="tag">Fila, lease e backpressure</span>
+      <div class="row">
+        <label class="f">Workers<input id="fqW" type="number" value="12" min="1" max="40"></label>
+        <label class="f">Encode (min)<input id="fqD" type="number" value="8" min="1" max="60"></label>
+        <label class="f">Chegadas/h<input id="fqA" type="number" value="60" min="0" max="600"></label>
+        <label class="f">Rajada<input id="fqB" type="number" value="18" min="1" max="200"></label>
+      </div>
+      <div class="row"><button id="fqRun" class="btn">▶ Iniciar</button><button id="fqBurst" class="btn ghost">Rajada</button><button id="fqKill" class="btn ghost">Matar worker</button><button id="fqZombie" class="btn ghost">Pausar worker (zumbi)</button></div>
+      <div class="stats">
+        <div class="stat"><div class="k">Na fila</div><div class="v" id="fqQ">0</div></div>
+        <div class="stat"><div class="k">Processando</div><div class="v" id="fqP">0</div></div>
+        <div class="stat"><div class="k">Prontos</div><div class="v ok" id="fqDone">0</div></div>
+        <div class="stat"><div class="k">Idade do mais antigo</div><div class="v" id="fqAge">0 min</div></div>
+        <div class="stat"><div class="k">Publicação p95</div><div class="v" id="fqP95">–</div></div>
+        <div class="stat"><div class="k">Relógio</div><div class="v" id="fqClock">0 min</div></div>
+      </div>
+      <p class="hint">1 segundo = 1 minuto. SLO: publicar em até 15 min (p95). A lease dura 2 min; quem trabalha, renova.</p>
+      <div id="fqLog" class="log">Inicie e solte uma rajada.</div>
+    </div>
+    <div class="panel"><span class="tag">Fila e idade do job mais antigo</span><canvas id="fqChart"></canvas><span class="tag">Workers</span><div id="fqWorkers" class="row"></div></div>
+  </section>
+
+  <!-- ============ PLAYER ============ -->
+  <section id="tab-player" class="split" hidden>
+    <div class="panel">
+      <span class="tag">HLS e bitrate adaptativo</span>
+      <div class="seg" id="plNet"><button data-k="50">sem limite</button><button data-k="8" aria-pressed="true">8 Mb/s</button><button data-k="2">2 Mb/s</button><button data-k="1">1 Mb/s</button></div>
+      <div class="seg" id="plAbr"><button data-k="auto" aria-pressed="true">ABR ligado</button><button data-k="lock">travar em 1080p</button></div>
+      <div class="row"><button id="plRun" class="btn">▶ Play</button><span class="muted">tempo acelerado 4×</span></div>
+      <div class="stats">
+        <div class="stat"><div class="k">Variante</div><div class="v" id="plLvl">–</div></div>
+        <div class="stat"><div class="k">Buffer</div><div class="v" id="plBuf">0 s</div></div>
+        <div class="stat"><div class="k">Banda estimada</div><div class="v" id="plEst">–</div></div>
+        <div class="stat"><div class="k">Travamentos</div><div class="v" id="plSt">0</div></div>
+        <div class="stat"><div class="k">Rebuffer ratio</div><div class="v" id="plRb">0%</div></div>
+      </div>
+      <p class="hint">Um segmento de 6 s a 5 Mb/s tem 30 Mb. Em 2 Mb/s ele leva 15 s para chegar. A 1 Mb/s, o mesmo trecho tem 6 Mb e chega em 3 s.</p>
+    </div>
+    <div class="panel"><span class="tag">Buffer (verde) e variante (laranja)</span><canvas id="plChart"></canvas>
+      <div class="scroll"><table><thead><tr><th>Segmento</th><th>Variante</th><th>Tamanho</th><th>Download</th></tr></thead><tbody id="plSegs"></tbody></table></div></div>
+  </section>
+
+  <!-- ============ CDN ============ -->
+  <section id="tab-cdn" class="split" hidden>
+    <div class="panel">
+      <span class="tag">CDN, cache e acesso assinado</span>
+      <div class="seg" id="cdKey"><button data-k="path" aria-pressed="true">chave = caminho</button><button data-k="cookie">chave = caminho + cookie</button></div>
+      <div class="row">
+        <label class="f">Espectadores<input id="cdV" type="number" value="20" min="1" max="500"></label>
+        <label class="f">Origem (ms)<input id="cdL" type="number" value="850" min="0" max="3000"></label>
+      </div>
+      <div class="row"><button id="cdRun" class="btn">▶ Iniciar carga</button><button id="cdPurge" class="btn ghost">Esvaziar o cache</button><button id="cdDown" class="btn ghost">Derrubar a origem</button></div>
+      <div class="stats">
+        <div class="stat"><div class="k">Hit ratio</div><div class="v" id="cdHit">–</div></div>
+        <div class="stat"><div class="k">Idas à origem</div><div class="v" id="cdOrg">0</div></div>
+        <div class="stat"><div class="k">Segmentos servidos</div><div class="v" id="cdReq">0</div></div>
+        <div class="stat"><div class="k">TTFB médio</div><div class="v" id="cdTtfb">–</div></div>
+        <div class="stat"><div class="k">Primeiro quadro</div><div class="v" id="cdFirst">–</div></div>
+        <div class="stat"><div class="k">Objetos no cache</div><div class="v" id="cdObj">0</div></div>
+      </div>
+      <p class="hint">Autorize pelo cookie, identifique pelo caminho. Com o token na chave, cada sessão abre a própria entrada e a CDN vira um proxy caro.</p>
+      <div id="cdLog" class="log">Inicie a carga e depois troque a chave.</div>
+    </div>
+    <div class="panel"><span class="tag">Hit ratio (verde) e idas à origem por segundo (vermelho)</span><canvas id="cdChart"></canvas></div>
+  </section>
+
+  <!-- ============ PROGRESSO ============ -->
+  <section id="tab-prog" class="panel" hidden>
+    <div class="row"><span class="tag grow">Progresso e retomada entre dispositivos</span>
+      <div class="seg" id="prMode"><button data-k="lww">última escrita vence</button><button data-k="cond" aria-pressed="true">escrita condicional</button></div>
+      <button id="prReset" class="btn ghost sm">recomeçar</button></div>
+    <p class="hint">Dê play no celular e envie 11:00. Dê play no notebook, volte para 4:20 e envie. Depois reenvie o checkpoint atrasado do celular.</p>
+    <div class="grid2"><div class="dev" data-dev="celular"></div><div class="dev" data-dev="notebook"></div></div>
+    <div class="row"><h3>Estado no servidor</h3><span class="m" id="prServer">–</span></div>
+    <div id="prLog" class="log">Dê play em um dos aparelhos.</div>
+  </section>
+</main>
+
+<script src="arq.js"></script>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const fmt = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+function log(el, html) { if (!el.dataset.on) { el.innerHTML = ''; el.dataset.on = 1; } el.insertAdjacentHTML('beforeend', `<div>${html}</div>`); el.scrollTop = el.scrollHeight; }
+function segGroup(id, fn) { $('#' + id).addEventListener('click', (e) => { const k = e.target.dataset.k; if (!k) return; $$('#' + id + ' button').forEach((b) => b.setAttribute('aria-pressed', b === e.target)); fn(k); }); }
+const segVal = (id) => $('#' + id + ' button[aria-pressed="true"]').dataset.k;
+const num = (id) => Number($('#' + id).value);
+
+// Gráfico de linhas simples: series = [{ data, color, max }]
+function plot(cv, series) {
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  cv.width = r.width * d; cv.height = r.height * d;
+  const c = cv.getContext('2d'); c.scale(d, d); c.clearRect(0, 0, r.width, r.height);
+  c.strokeStyle = '#1d2a39'; c.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { c.beginPath(); c.moveTo(0, (r.height * i) / 4); c.lineTo(r.width, (r.height * i) / 4); c.stroke(); }
+  for (const s of series) {
+    const max = s.max || Math.max(1, ...s.data), n = Math.max(s.data.length, 60);
+    c.strokeStyle = s.color; c.lineWidth = 2; c.beginPath();
+    s.data.forEach((v, i) => { const x = (i / (n - 1)) * r.width, y = r.height - 6 - (Math.min(v, max) / max) * (r.height - 12); i ? c.lineTo(x, y) : c.moveTo(x, y); });
+    c.stroke();
+    if (s.label) { c.fillStyle = s.color; c.font = '12px ui-monospace, monospace'; c.fillText(s.label, 8, s.ly || 16); }
+  }
+}
+const push = (arr, v, cap = 240) => { arr.push(v); if (arr.length > cap) arr.shift(); };
+
+// ---------- abas ----------
+const tabs = $$('nav.tabs button');
+function showTab(name) {
+  tabs.forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === name));
+  $$('main > section').forEach((s) => (s.hidden = s.id !== 'tab-' + name));
+  if (name === 'arq' && window.renderArq) renderArq();
+}
+tabs.forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+// ---------- login e IdP ----------
+segGroup('lgMethod', () => {});
+$('#tab-login').addEventListener('click', async (e) => {
+  const u = e.target.dataset.user; if (!u) return;
+  const el = $('#lgLog'), m = segVal('lgMethod'), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  el.dataset.on = ''; el.textContent = '';
+  log(el, `<b>navegador → IdP</b>  ${u} quer entrar`); await wait(600);
+  log(el, m === 'passkey' ? `<b>IdP ↔ aparelho</b>  desafio WebAuthn; a digital destrava a chave <span class="y">no aparelho</span> e volta uma assinatura` : `<b>IdP</b>  confere a senha (hash) e pede o código de 6 dígitos`); await wait(900);
+  log(el, `<b>IdP → navegador</b>  token assinado { sub: "${u}", amr: ${m === 'passkey' ? '["webauthn"]' : '["pwd","otp"]'}, exp: +8h }`); await wait(700);
+  log(el, `<b>navegador → API</b>  Authorization: Bearer …`); await wait(500);
+  log(el, `<b>API</b>  confere a assinatura. <span class="g">Autenticada: é a ${u}.</span> A API não viu senha nem digital.`); await wait(700);
+  log(el, `<b>API → Postgres</b>  ${u} tem matrícula no curso 1?`); await wait(600);
+  log(el, u === 'ana' ? `<span class="g">200</span> manifest + cookie de acesso ao vídeo` : `<span class="e">403</span> sem matrícula neste curso. Autenticada, mas não autorizada.`);
+});
+
+// ---------- upload ----------
+const up = { parts: [], timer: null };
+function upDraw() { $('#upGrid').innerHTML = up.parts.map((p) => `<div class="part ${p}"></div>`).join(''); }
+function upRun(dropPct) {
+  const sizeMB = num('upSize') * 1024, partMB = num('upPart'), bw = num('upBw'), n = Math.ceil(sizeMB / partMB);
+  if (dropPct !== null) up.parts = Array(n).fill('');
+  const secPerPart = (partMB * 8) / bw, total = (sizeMB * 8) / bw;
+  $('#upN').textContent = n; $('#upT').textContent = Math.round(total / 60) + ' min';
+  $('#upGo').disabled = $('#upRes').disabled = true;
+  log($('#upLog'), dropPct !== null ? `<b>POST /uploads</b> → ${n} partes de ${partMB} MiB (${secPerPart.toFixed(1)} s cada a ${bw} Mb/s)` : `<b>GET /uploads/{id}</b> → ${up.parts.filter((p) => p === 'd').length} de ${n} partes já gravadas. URLs novas só para as que faltam.`);
+  clearInterval(up.timer);
+  up.timer = setInterval(() => {
+    up.parts.forEach((p, i) => { if (p === 's') up.parts[i] = 'd'; });
+    const done = up.parts.filter((p) => p === 'd').length;
+    if (dropPct && done / n >= dropPct / 100) {
+      clearInterval(up.timer);
+      up.parts = up.parts.map((p) => (p === 'd' ? 'd' : 'l'));
+      const left = n - done;
+      $('#upRe').textContent = `${(left * partMB).toFixed(0)} MB`; $('#upRe0').textContent = `${(sizeMB / 1024).toFixed(1)} GB inteiros`;
+      log($('#upLog'), `<span class="y">✂ a conexão caiu com ${done} de ${n} partes.</span> O asset continua o mesmo.`);
+      $('#upRes').disabled = false; $('#upGo').disabled = false; upDraw(); return;
+    }
+    const next = up.parts.map((p, i) => (p === 'd' ? -1 : i)).filter((i) => i >= 0).slice(0, 4);
+    if (!next.length) {
+      clearInterval(up.timer); upDraw();
+      log($('#upLog'), `<b>POST /complete</b> → <span class="g">COMPLETED</span>. Asset na fila de processamento.`);
+      log($('#upLog'), `<b>POST /complete</b> de novo → <span class="y">já estava concluído</span>: nada duplicado.`);
+      $('#upGo').disabled = false; return;
+    }
+    next.forEach((i) => (up.parts[i] = 's')); upDraw();
+  }, 110);
+}
+$('#upGo').addEventListener('click', () => upRun(num('upDrop')));
+$('#upRes').addEventListener('click', () => upRun(null));
+
+// ---------- fila e workers (1 s = 1 min) ----------
+const fq = { t: 0, jobs: [], workers: [], next: 1, run: null, qs: [], ages: [], lat: [], acc: 0 };
+const LEASE = 2;
+function fqSync() {
+  const n = num('fqW');
+  while (fq.workers.length < n) fq.workers.push({ id: fq.workers.length + 1, job: null, dead: 0, paused: 0 });
+  fq.workers.length = n;
+}
+const fqAdd = (k) => { for (let i = 0; i < k; i++) fq.jobs.push({ id: fq.next++, state: 'Q', at: fq.t, attempt: 0, owner: null, lease: 0, left: 0 }); };
+function fqStep(dt) {
+  fq.t += dt; fqSync();
+  fq.acc += (num('fqA') / 60) * dt; while (fq.acc >= 1) { fqAdd(1); fq.acc--; }
+  for (const w of fq.workers) {
+    if (w.dead > 0) { w.dead -= dt; if (w.dead <= 0) log($('#fqLog'), `worker ${w.id} voltou`); continue; }
+    if (w.paused > 0) { w.paused -= dt; if (w.paused > 0) continue;
+      const j = w.job; // o zumbi acorda e tenta publicar
+      if (j && j.owner !== w.token) { log($('#fqLog'), `<span class="y">worker ${w.id} acordou e tentou publicar o job ${j.id}:</span> <span class="e">recusado</span>, attempt_id não confere`); w.job = null; } }
+    if (w.job) {
+      const j = w.job;
+      if (j.owner !== w.token) { w.job = null; continue; }
+      j.lease = LEASE; j.left -= dt;
+      if (j.left <= 0) { j.state = 'D'; push(fq.lat, fq.t - j.at, 400); w.job = null; }
+    }
+    if (!w.job) {
+      const j = fq.jobs.find((x) => x.state === 'Q' || (x.state === 'P' && x.lease <= 0));
+      if (j) { if (j.state === 'P') log($('#fqLog'), `lease do job ${j.id} venceu → <b>tentativa ${j.attempt + 1}</b> no worker ${w.id}`);
+        j.state = 'P'; j.attempt++; j.left = num('fqD'); j.lease = LEASE; w.token = j.owner = w.id + ':' + j.attempt; w.job = j; }
+    }
+  }
+  for (const j of fq.jobs) if (j.state === 'P') { const w = fq.workers.find((x) => x.job === j && !x.dead && !(x.paused > 0)); if (!w) j.lease -= dt; }
+  fq.jobs = fq.jobs.filter((j) => j.state !== 'D' || (fq.done = (fq.done || 0) + 1, false));
+}
+function fqDraw() {
+  const q = fq.jobs.filter((j) => j.state === 'Q').length, p = fq.jobs.filter((j) => j.state === 'P').length;
+  const age = fq.jobs.length ? fq.t - Math.min(...fq.jobs.map((j) => j.at)) : 0;
+  push(fq.qs, q); push(fq.ages, age);
+  $('#fqQ').textContent = q; $('#fqP').textContent = p; $('#fqDone').textContent = fq.done || 0;
+  $('#fqAge').textContent = age.toFixed(0) + ' min'; $('#fqAge').className = 'v ' + (age > 15 ? 'bad' : age > 9 ? 'warn' : 'ok');
+  const s = [...fq.lat].sort((a, b) => a - b), p95 = s.length ? s[Math.floor(s.length * 0.95)] : 0;
+  $('#fqP95').textContent = s.length ? p95.toFixed(0) + ' min' : '–'; $('#fqP95').className = 'v ' + (p95 > 15 ? 'bad' : 'ok');
+  $('#fqClock').textContent = fq.t.toFixed(0) + ' min';
+  $('#fqWorkers').innerHTML = fq.workers.map((w) => `<div class="wk ${w.dead > 0 ? 'dead' : w.paused > 0 ? 'paused' : ''}">worker ${w.id} ${w.dead > 0 ? '· morto' : w.paused > 0 ? '· pausado' : w.job ? `· job ${w.job.id} t${w.job.attempt}` : '· livre'}<div class="bar"><i style="width:${w.job ? 100 - (w.job.left / num('fqD')) * 100 : 0}%"></i></div></div>`).join('');
+  plot($('#fqChart'), [{ data: fq.qs, color: '#5BB8FF', label: 'jobs na fila' }, { data: fq.ages, color: '#FF8A3D', max: Math.max(20, ...fq.ages), label: 'idade do mais antigo (min)', ly: 32 }]);
+}
+$('#fqRun').addEventListener('click', () => {
+  if (fq.run) { clearInterval(fq.run); fq.run = null; $('#fqRun').textContent = '▶ Continuar'; return; }
+  $('#fqRun').textContent = '❚❚ Pausar'; fq.run = setInterval(() => { fqStep(0.1); fqDraw(); }, 100);
+});
+$('#fqBurst').addEventListener('click', () => { fqAdd(num('fqB')); log($('#fqLog'), `<b>rajada:</b> ${num('fqB')} jobs de uma vez`); if (!fq.run) $('#fqRun').click(); });
+$('#fqKill').addEventListener('click', () => { const w = fq.workers.find((x) => x.job && !x.dead); if (!w) return log($('#fqLog'), 'nenhum worker ocupado'); w.dead = 6; w.job = null; log($('#fqLog'), `<span class="e">kill -9 no worker ${w.id}</span>: ninguém avisa a fila; a lease vence em ${LEASE} min`); });
+$('#fqZombie').addEventListener('click', () => { const w = fq.workers.find((x) => x.job && !x.dead && !(x.paused > 0)); if (!w) return log($('#fqLog'), 'nenhum worker ocupado'); w.paused = 4; log($('#fqLog'), `<span class="y">worker ${w.id} congelou</span> por 4 min, mais que a lease`); });
+
+// ---------- player e ABR (4×) ----------
+const LADDER = [['480p', 1], ['720p', 2.5], ['1080p', 5]];
+const pl = { run: null, buf: 0, lvl: 0, est: 1.5, dl: null, seg: 0, started: false, stalls: 0, stallT: 0, playT: 0, stalled: false, bufs: [], lvls: [] };
+function plStep(dt) {
+  const net = Number(segVal('plNet'));
+  if (!pl.dl && pl.buf < 12) {
+    if (segVal('plAbr') === 'lock' && pl.started) pl.lvl = 2;
+    else if (segVal('plAbr') === 'auto') { pl.lvl = 0; LADDER.forEach(([, b], i) => { if (b <= pl.est * 0.8) pl.lvl = i; }); }
+    pl.dl = { lvl: pl.lvl, bits: LADDER[pl.lvl][1] * 6, left: LADDER[pl.lvl][1] * 6, t: 0, n: ++pl.seg };
+  }
+  if (pl.dl) {
+    pl.dl.left -= net * dt; pl.dl.t += dt;
+    if (pl.dl.left <= 0) {
+      const d = pl.dl; pl.buf += 6; pl.est = 0.5 * pl.est + 0.5 * (d.bits / d.t); pl.dl = null; pl.started = true;
+      $('#plSegs').insertAdjacentHTML('afterbegin', `<tr><td class="m">seg_${String(d.n).padStart(3, '0')}</td><td class="m">${LADDER[d.lvl][0]}</td><td class="m">${d.bits} Mb</td><td class="m" style="color:${d.t > 6 ? 'var(--bad)' : 'var(--ok)'}">${d.t.toFixed(1)} s</td></tr>`);
+      while ($('#plSegs').children.length > 8) $('#plSegs').lastChild.remove();
+    } else if (segVal('plAbr') === 'auto' && pl.dl.t > 6 && pl.dl.lvl > 0) { pl.est = (pl.dl.bits - pl.dl.left) / pl.dl.t; pl.dl = null; pl.seg--; } // desiste do segmento lento
+  }
+  if (pl.started) {
+    if (pl.buf > 0) { pl.buf = Math.max(0, pl.buf - dt); pl.playT += dt; pl.stalled = false; }
+    else { if (!pl.stalled) { pl.stalls++; pl.stalled = true; } pl.stallT += dt; }
+  }
+}
+function plDraw() {
+  push(pl.bufs, pl.buf); push(pl.lvls, pl.lvl + 1);
+  $('#plLvl').textContent = LADDER[pl.lvl][0]; $('#plBuf').textContent = pl.buf.toFixed(1) + ' s'; $('#plBuf').className = 'v ' + (pl.buf < 2 ? 'bad' : pl.buf < 6 ? 'warn' : 'ok');
+  $('#plEst').textContent = pl.est.toFixed(1) + ' Mb/s'; $('#plSt').textContent = `${pl.stalls} · ${pl.stallT.toFixed(0)} s`; $('#plSt').className = 'v' + (pl.stalls ? ' bad' : '');
+  const rb = pl.stallT / Math.max(1, pl.stallT + pl.playT); $('#plRb').textContent = (rb * 100).toFixed(1) + '%'; $('#plRb').className = 'v' + (rb > 0.01 ? ' bad' : '');
+  plot($('#plChart'), [{ data: pl.bufs, color: '#7FDBA0', max: 18, label: 'buffer (s)' }, { data: pl.lvls, color: '#FF8A3D', max: 3.4, label: '480p / 720p / 1080p', ly: 32 }]);
+}
+$('#plRun').addEventListener('click', () => {
+  if (pl.run) { clearInterval(pl.run); pl.run = null; $('#plRun').textContent = '▶ Continuar'; return; }
+  $('#plRun').textContent = '❚❚ Pausar'; pl.run = setInterval(() => { plStep(0.4); plDraw(); }, 100);
+});
+segGroup('plNet', () => {}); segGroup('plAbr', () => {});
+
+// ---------- CDN ----------
+const cd = { run: null, cache: new Map(), inflight: new Map(), viewers: [], hit: 0, req: 0, org: 0, ttfb: 0, down: false, t: 0, hits: [], orgs: [], lastOrg: 0, win: [] };
+function cdReset() { cd.hit = cd.req = cd.org = cd.ttfb = 0; cd.win = []; }
+function cdStep(dt) {
+  cd.t += dt; const n = num('cdV'), lat = num('cdL') / 1000, key = segVal('cdKey');
+  while (cd.viewers.length < n) cd.viewers.push({ id: cd.viewers.length, sess: Math.random().toString(36).slice(2, 8), seg: 0, wait: Math.random() * 8, first: null, t0: cd.t });
+  cd.viewers.length = n;
+  for (const [k, f] of cd.inflight) { f.left -= dt; if (f.left <= 0) { cd.cache.set(k, 1); cd.inflight.delete(k); } }
+  for (const v of cd.viewers) {
+    if (v.pending) { if (!cd.inflight.has(v.pending)) { v.pending = null; v.wait = 1; v.seg++; if (v.first === null) v.first = cd.t - v.t0; } continue; }
+    v.wait -= dt; if (v.wait > 0) continue;
+    if (v.seg >= 15) { v.seg = 0; v.sess = Math.random().toString(36).slice(2, 8); v.t0 = cd.t; v.first = null; } // novo play, novo token
+    const k = 'seg' + v.seg + (key === 'cookie' ? '|' + v.sess : '');
+    cd.req++;
+    if (cd.cache.has(k)) { cd.hit++; cd.win.push(1); cd.ttfb += 0.001; v.wait = 1; v.seg++; if (v.first === null) v.first = cd.t - v.t0; }
+    else { cd.win.push(0); cd.ttfb += lat;
+      if (cd.down) { v.wait = 2; continue; }
+      if (!cd.inflight.has(k)) { cd.org++; cd.inflight.set(k, { left: lat }); } // pedidos iguais viram uma ida só
+      v.pending = k; }
+  }
+  if (cd.win.length > 300) cd.win.splice(0, cd.win.length - 300);
+}
+function cdDraw() {
+  const ratio = cd.win.length ? cd.win.reduce((a, b) => a + b, 0) / cd.win.length : 0;
+  push(cd.hits, ratio); push(cd.orgs, (cd.org - cd.lastOrg) / 0.6); cd.lastOrg = cd.org;
+  $('#cdHit').textContent = cd.req ? Math.round(ratio * 100) + '%' : '–'; $('#cdHit').className = 'v ' + (ratio > 0.8 ? 'ok' : ratio > 0.4 ? 'warn' : 'bad');
+  $('#cdOrg').textContent = cd.org; $('#cdReq').textContent = cd.req; $('#cdObj').textContent = cd.cache.size;
+  $('#cdTtfb').textContent = cd.req ? Math.round((cd.ttfb / cd.req) * 1000) + ' ms' : '–';
+  const firsts = cd.viewers.map((v) => v.first).filter((x) => x !== null), f = firsts.length ? firsts.reduce((a, b) => a + b, 0) / firsts.length : 0;
+  $('#cdFirst').textContent = firsts.length ? f.toFixed(2) + ' s' : '–'; $('#cdFirst').className = 'v ' + (f > 2.5 ? 'bad' : 'ok');
+  plot($('#cdChart'), [{ data: cd.hits, color: '#7FDBA0', max: 1, label: 'hit ratio' }, { data: cd.orgs, color: '#FF6B6B', max: Math.max(10, ...cd.orgs), label: 'idas à origem / s', ly: 32 }]);
+}
+$('#cdRun').addEventListener('click', () => {
+  if (cd.run) { clearInterval(cd.run); cd.run = null; $('#cdRun').textContent = '▶ Continuar'; return; }
+  $('#cdRun').textContent = '❚❚ Pausar'; cd.run = setInterval(() => { cdStep(0.3); cdStep(0.3); cdDraw(); }, 200);
+});
+segGroup('cdKey', (k) => { cdReset(); log($('#cdLog'), k === 'cookie' ? '<span class="e">chave = caminho + cookie</span>: cada sessão passa a ter a própria cópia' : '<span class="g">chave = caminho</span>: todos os alunos compartilham a mesma entrada'); });
+$('#cdPurge').addEventListener('click', () => { cd.cache.clear(); cdReset(); log($('#cdLog'), 'cache esvaziado: é uma região fria'); });
+$('#cdDown').addEventListener('click', () => { cd.down = !cd.down; $('#cdDown').textContent = cd.down ? 'Religar a origem' : 'Derrubar a origem'; log($('#cdLog'), cd.down ? '<span class="e">origem fora do ar</span>: o que está em cache continua tocando; o que não está, falha' : 'origem de volta'); });
+
+// ---------- dois dispositivos ----------
+let srv = { gen: 0, seq: 0, pos: 0 };
+const prPaint = () => ($('#prServer').textContent = `generation ${srv.gen} · seq ${srv.seq} · posição ${fmt(srv.pos)}`);
+function prBuild() {
+  srv = { gen: 0, seq: 0, pos: 0 }; $('#prLog').dataset.on = ''; $('#prLog').textContent = 'Dê play em um dos aparelhos.'; prPaint();
+  for (const el of $$('.dev')) {
+    const name = el.dataset.dev, d = { gen: 0, seq: 0, last: null };
+    el.innerHTML = `<div class="row"><h2 class="grow">${name === 'celular' ? '📱 Celular' : '💻 Notebook'}</h2><span class="pill" data-k="s">sem sessão</span></div>
+      <label class="f">Posição: <span class="m" data-k="p">0:00</span><input type="range" min="0" max="900" value="${name === 'celular' ? 660 : 260}" id="pr-${name}"></label>
+      <div class="row"><button class="btn sm" data-a="play">▶ Play (abre sessão)</button><button class="btn ghost sm" data-a="send" disabled>Enviar checkpoint</button><button class="btn ghost sm" data-a="re" disabled>Reenviar o último (atrasado)</button></div>`;
+    const sl = $('input', el), sync = () => ($('[data-k=p]', el).textContent = fmt(sl.value * 1000)); sl.oninput = sync; sync();
+    el.onclick = (e) => {
+      const a = e.target.dataset.a; if (!a) return;
+      if (a === 'play') { d.gen = ++srv.gen; srv.seq = d.seq = 0; sl.value = srv.pos / 1000; sync(); $('[data-k=s]', el).textContent = 'generation ' + d.gen; $('[data-k=s]', el).className = 'pill ok'; $('[data-a=send]', el).disabled = false; log($('#prLog'), `<b>${name}</b> abre sessão → generation <b>${d.gen}</b>, retoma em ${fmt(srv.pos)}`); }
+      else {
+        if (a === 'send') { d.last = { gen: d.gen, seq: ++d.seq, pos: sl.value * 1000 }; $('[data-a=re]', el).disabled = false; }
+        const c = d.last, ok = segVal('prMode') === 'lww' || (c.gen === srv.gen && c.seq > srv.seq);
+        if (ok) { srv.pos = c.pos; srv.seq = c.seq; }
+        log($('#prLog'), `<b>${name}</b> PUT { generation: ${c.gen}, seq: ${c.seq}, ${fmt(c.pos)} } → ${ok ? '<span class="g">gravado</span>' : `<span class="e">409 recusado</span>: servidor em generation ${srv.gen}, seq ${srv.seq}`}${ok && c.gen !== srv.gen ? ' <span class="e">← uma sessão antiga sobrescreveu a nova</span>' : ''}`);
+        if (c.gen !== srv.gen) { $('[data-k=s]', el).textContent = `generation ${d.gen} (vencida)`; $('[data-k=s]', el).className = 'pill bad'; }
+      }
+      prPaint();
+    };
+  }
+}
+segGroup('prMode', prBuild); $('#prReset').addEventListener('click', prBuild); prBuild();
+
+showTab('arq');
+</script>
+</body>
+</html>

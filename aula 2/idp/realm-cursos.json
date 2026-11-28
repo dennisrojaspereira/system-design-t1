@@ -1,0 +1,43 @@
+{
+  "realm": "cursos",
+  "displayName": "Plataforma de cursos — Aula 02",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "accessTokenLifespan": 28800,
+  "clients": [
+    {
+      "clientId": "plataforma",
+      "name": "Plataforma de cursos",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "ana",
+      "enabled": true,
+      "email": "ana@example.com",
+      "emailVerified": true,
+      "firstName": "Ana",
+      "lastName": "Aluna",
+      "credentials": [{ "type": "password", "value": "ana", "temporary": false }]
+    },
+    {
+      "username": "bia",
+      "enabled": true,
+      "email": "bia@example.com",
+      "emailVerified": true,
+      "firstName": "Bia",
+      "lastName": "Aluna",
+      "credentials": [{ "type": "password", "value": "bia", "temporary": false }]
+    }
+  ]
+}

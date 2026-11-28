@@ -21,6 +21,36 @@ O histórico de métricas e os vídeos são mantidos entre os labs.
 | 6 | Publicação e rollback | Pacote incompleto no ar; voltar de versão | para casa |
 | A, B | Investigue o play | Sintoma sem causa | fechamento |
 
+> **Sem tempo para esperar?** `make demo` mantém o Grafana com dados; o [simulador](http://localhost:8090/simulador.html) faz os mesmos experimentos com o tempo acelerado; e `videos/` tem um clipe de cada lab. Cada aba do laboratório tem atalhos "No Grafana ↗" para os painéis citados aqui.
+
+---
+
+## Lab 0 — Quem é você, e o que pode fazer
+
+**Arquitetura:** navegador → IdP (autentica) → API (confere o token) → OPA (decide) → Postgres (matrícula).
+
+```bash
+make lab1
+make idp        # Keycloak; leva uns 40 s
+```
+
+1. Abra http://localhost:8090. Na tela de login, **Entrar com Keycloak** e use `bia` / `bia`. Repare na barra de endereço: a senha é digitada no IdP, não na plataforma.
+2. Tente assistir à aula 1: `403 — sem matrícula neste curso`. A bia está autenticada, mas não autorizada.
+3. Saia e entre como `ana` / `ana`. A aula 1 toca.
+4. Abra http://localhost:8088 (`admin` / `admin`), realm **cursos**, *Authentication → Policies*: senha, OTP, WebAuthn e passwordless. Em *Realm settings → Security defenses*: bloqueio por tentativas. É tudo o que você não precisou escrever.
+
+**A policy.** Abra `policy/playback.rego`. Comente a linha `input.entitlement.active == true`, salve e dê play como bia: agora toca. Desfaça.
+
+**Fail closed.** `docker compose stop opa`, dê play: negado, com "serviço de autorização indisponível". `docker compose start opa`.
+
+**Painéis:** *Logins no IdP* · *Play: autorizado × negado* · *Decisões de autorização (OPA)*.
+
+**Perguntas**
+
+- Por que a biometria nunca chega ao servidor? (Passkeys: o aparelho destrava uma chave privada e devolve uma assinatura.)
+- O token do IdP diz "esta é a ana". Por que a matrícula não vai dentro do token? (Ela muda; o token vale por horas.)
+- OPA central ou ao lado de cada serviço? O que acontece em cada caso quando a rede falha?
+
 ---
 
 ## Lab 1 — Upload direto, retomável e privado

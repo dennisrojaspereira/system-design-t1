@@ -8,9 +8,13 @@ Material da segunda aula: uma plataforma de cursos que recebe um vídeo de 2 GB,
 |---|---|
 | [ROTEIRO.md](ROTEIRO.md) | Roteiro da aula, minuto a minuto, com as contas e os trade-offs |
 | [Slides](https://claude.ai/artifact/QAr7QdoMGERjC4fAhD85vh) | A apresentação da aula, 18 slides com notas do apresentador (link privado até ser compartilhado) |
+| [Simulador](https://claude.ai/artifact/WGTk98ysi2mErPrT2vioUJ) | Os experimentos no navegador, com o tempo acelerado e sem instalar nada (também em `ui/html/simulador.html`) |
+| `videos/` | Clipes de cada experimento gravados no laboratório, para mostrar sem esperar |
 | [LABS.md](LABS.md) | Os seis laboratórios e os dois casos de investigação, passo a passo |
-| `app/` | A plataforma (Go): um binário, três papéis — `api`, `worker` e `edge` |
-| `ui/` | Interface do laboratório: catálogo, upload, fila, player com HUD e dois dispositivos |
+| `app/` | A plataforma (Go): um binário, quatro papéis — `api`, `worker`, `edge` e `demo` |
+| `ui/` | Interface do laboratório: login, catálogo, arquitetura (C1–C4 e fluxo de negócio animados), upload, fila, player com HUD e dois dispositivos |
+| `idp/` | Realm do Keycloak (`make idp`): o provedor de identidade de verdade |
+| `policy/` | A regra de quem pode dar play, em Rego, avaliada pelo OPA |
 | `db/` | Esquema do Postgres: catálogo, versões de vídeo, fila e progresso |
 | `k6/` | Testes de carga: audiência assistindo e checkpoints de progresso |
 | `observability/` | Prometheus e o dashboard do Grafana |
@@ -21,7 +25,7 @@ Material da segunda aula: uma plataforma de cursos que recebe um vídeo de 2 GB,
 - Docker com Compose (Docker Desktop, OrbStack ou equivalente), com pelo menos 4 CPUs e 4 GB.
 - `make`. Sem ele, veja "Sem make" abaixo.
 - Chrome, Edge ou Firefox (o player usa Media Source Extensions).
-- Portas livres: 8090 (laboratório), 3000 (Grafana), 9090 (Prometheus), 8080 (API) e 8081 (borda). Para trocar, defina `UI_PORT`, `GRAFANA_PORT`, `PROM_PORT`, `API_PORT` ou `EDGE_PORT` no `.env`. As portas são as mesmas da Aula 1: rode `make down` lá antes.
+- Portas livres: 8090 (laboratório), 3000 (Grafana), 9090 (Prometheus), 8080 (API), 8081 (borda), 8181 (OPA) e 8088 (Keycloak, só com `make idp`). Para trocar, defina `UI_PORT`, `GRAFANA_PORT`, `PROM_PORT`, `API_PORT` ou `EDGE_PORT` no `.env`. As portas são as mesmas da Aula 1: rode `make down` lá antes.
 
 ## Começando
 
@@ -32,6 +36,30 @@ make lab1
 Abra **http://localhost:8090**. A primeira subida baixa as imagens, compila a aplicação e gera o vídeo de exemplo; cerca de um minuto depois a aula "Encurtador de links" aparece como `READY` no catálogo. Clique em **▶ assistir**.
 
 O Grafana fica em http://localhost:3000 — o dashboard **Plataforma de vídeo — Aula 02** é a página inicial, sem login.
+
+## Para a aula, sem esperar
+
+```bash
+make lab1     # sobe tudo
+make demo     # espectadores simulados: Grafana com dados em todos os painéis
+make idp      # Keycloak em http://localhost:8088 (admin / admin · ana / ana · bia / bia)
+```
+
+- **Clipes** de cada experimento estão nos slides e em `videos/`.
+- **Simulador**: http://localhost:8090/simulador.html — ou abra `ui/html/simulador.html` direto, sem Docker.
+- **Atalhos para o Grafana**: cada aba do laboratório tem links "No Grafana ↗" que abrem o painel certo.
+- **De outra máquina da rede**: troque `localhost` pelo IP de quem roda o lab. As portas escutam em todas as interfaces e a interface usa caminhos relativos. `make urls` mostra o IP.
+
+## Identidade e autorização
+
+O laboratório começa por um login. Há dois caminhos na tela de entrada:
+
+- **IdP simulado**: um clique, para não gastar tempo. Mostra o token que a plataforma recebe.
+- **Keycloak** (`make idp`): login por redirecionamento, OIDC Authorization Code + PKCE. A API valida o JWT com a chave pública do IdP (JWKS). Abra o console em http://localhost:8088 para ver o que um IdP traz pronto: política de senha, OTP, WebAuthn, passwordless, bloqueio por tentativas.
+
+Autenticar não é autorizar. Quem pode dar play é decidido pelo **OPA**, com a policy em `policy/playback.rego`: edite com o lab rodando e o OPA recarrega. Se o OPA cair, a API nega por padrão. Com `AUTHZ=code` no `.env`, a mesma regra roda dentro do serviço.
+
+O cabeçalho `X-User` continua valendo como atalho para `curl` e k6.
 
 ## A arquitetura
 
@@ -75,6 +103,8 @@ Cada `make labN` copia `labs/labN.env` para `.env` e recria os containers, mante
 ```bash
 make lab1 … lab6      # troca de laboratório
 make caso-a caso-b    # casos de investigação
+make demo  demo-stop  # liga e desliga os espectadores simulados
+make idp   idp-stop   # liga e desliga o Keycloak
 make apply            # reaplica o .env
 make burst N=18       # enfileira 18 publicações de uma vez
 make kill-worker      # mata o worker que está processando
@@ -102,7 +132,7 @@ TOKEN=$(curl -s -XPOST localhost:8080/api/lessons/1/playback | sed 's/.*"access"
 curl -s -o /dev/null -D - -H "Cookie: vod_access=$TOKEN" localhost:8081/vod/a1/t1/720p/seg_001.m4s | grep -i x-cache
 ```
 
-O laboratório não tem login: o cabeçalho `X-User` diz quem é o aluno (`ana` está matriculada em tudo; `bia` não tem o curso 1).
+Nos exemplos com `curl`, o cabeçalho `X-User` diz quem é o aluno (`ana` está matriculada em tudo; `bia` não tem o curso 1). Pela interface, quem diz é o token do IdP.
 
 ## Sem make
 

@@ -1,7 +1,7 @@
 # Atalhos do laboratório. Tudo aqui é só `docker compose` — veja o README
 # se preferir digitar os comandos na mão (ou estiver no Windows sem make).
 DC := $(shell docker compose version >/dev/null 2>&1 && echo docker compose || echo docker-compose)
-ALL := --profile tools
+ALL := --profile tools --profile demo --profile idp
 
 SCRIPT ?= playback
 K6_VARS := VIEWERS DURATION LESSON VARIANT PACE INTERVAL JITTER
@@ -10,7 +10,7 @@ N ?= 8
 PAUSE ?= 35
 BUSY := $(DC) exec -T pg psql -U vod -At -c "SELECT worker FROM jobs WHERE state = 'PROCESSING' ORDER BY started_at LIMIT 1"
 
-.PHONY: lab1 lab2 lab3 lab4 lab5 lab6 caso-a caso-b apply load burst kill-worker pause-worker fila ps logs down reset urls
+.PHONY: demo demo-stop idp idp-stop lab1 lab2 lab3 lab4 lab5 lab6 caso-a caso-b apply load burst kill-worker pause-worker fila ps logs down reset urls
 
 # Troca de laboratório: mantém os dados, os vídeos e o histórico de métricas.
 lab1 lab2 lab3 lab4 lab5 lab6 caso-a caso-b:
@@ -19,6 +19,27 @@ lab1 lab2 lab3 lab4 lab5 lab6 caso-a caso-b:
 	$(DC) build
 	$(DC) up -d --wait
 	@$(MAKE) --no-print-directory urls
+
+# Modo demonstração: espectadores simulados mantêm o Grafana com dados.
+# Use na aula para não esperar encode nem rampa de carga.
+demo:
+	$(DC) --profile demo up -d demo
+	@echo "Demo ligada: abra o Grafana. Para desligar: make demo-stop"
+
+demo-stop:
+	$(DC) --profile demo stop demo
+
+# Provedor de identidade de verdade (Keycloak). Leva ~40 s para subir.
+idp:
+	$(DC) --profile idp up -d keycloak
+	@echo ""
+	@echo "  Keycloak     http://localhost:8088   (admin / admin)"
+	@echo "  Usuárias     ana / ana   e   bia / bia   no realm 'cursos'"
+	@echo "  No laboratório, a tela de login ganha o botão 'Entrar com Keycloak'."
+	@echo ""
+
+idp-stop:
+	$(DC) --profile idp stop keycloak
 
 # Reaplica o .env depois de editar uma variável.
 apply:
@@ -68,10 +89,13 @@ reset:
 
 urls:
 	@echo ""
-	@echo "  Laboratório  http://localhost:8090   (catálogo, upload, fila, player)"
+	@echo "  Laboratório  http://localhost:8090   (catálogo, arquitetura, upload, fila, player)"
+	@echo "  Simulador    http://localhost:8090/simulador.html   (sem espera, tempo acelerado)"
 	@echo "  Grafana      http://localhost:3000"
 	@echo "  Prometheus   http://localhost:9090"
 	@echo "  API          http://localhost:8080"
 	@echo ""
+	@echo "  De outra máquina da rede, troque localhost pelo IP desta: $$(ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | cut -d' ' -f1)"
 	@echo "  Na primeira subida, a aula 1 leva cerca de um minuto para ficar READY."
+	@echo "  Para a aula: make demo (Grafana com dados) e make idp (Keycloak)."
 	@echo ""

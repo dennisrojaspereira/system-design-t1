@@ -7,6 +7,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -39,6 +40,14 @@ var (
 	uploadsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "uploads_total", Help: "Sessões de upload por evento.",
 	}, []string{"event"}) // created | completed | complete_repeated | reconciled
+
+	idpLogins = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "idp_logins_total", Help: "Logins no IdP do laboratório, por método.",
+	}, []string{"method"}) // senha+2fa | passkey
+
+	authzDecisions = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "authz_decisions_total", Help: "Decisões de autorização do play, por motor e resultado.",
+	}, []string{"engine", "result"}) // engine: opa | code ; result: true | false | erro
 
 	playbackTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "playback_requests_total", Help: "Pedidos de play por resultado.",
@@ -84,6 +93,10 @@ func runAPI(ctx context.Context) {
 
 	h("GET /api/courses", "courses", a.listCourses)
 	h("GET /api/courses/{id}", "course", a.getCourse)
+
+	// O "IdP" do laboratório mora no mesmo binário, mas é outro sistema: tem rota,
+	// segredo e responsabilidade próprios. A API só confere o token que ele emite.
+	h("POST /idp/token", "idp_token", idpToken)
 
 	h("POST /api/uploads", "upload_create", a.createUpload)
 	h("GET /api/uploads/{id}", "upload_status", a.uploadStatus)
@@ -131,8 +144,12 @@ func instrument(route string, fn http.HandlerFunc) http.Handler {
 	})
 }
 
-// O laboratório não tem login: o cabeçalho X-User diz quem é o aluno.
+// user diz quem está chamando. O caminho normal é o token do IdP. O cabeçalho
+// X-User é um atalho só do laboratório, para curl e k6 não precisarem de login.
 func user(r *http.Request) string {
+	if u := bearerUser(r); u != "" {
+		return u
+	}
 	if u := r.Header.Get("X-User"); u != "" {
 		return u
 	}
@@ -142,6 +159,32 @@ func user(r *http.Request) string {
 func pathInt(r *http.Request, name string) int {
 	n, _ := strconv.Atoi(r.PathValue(name))
 	return n
+}
+
+// ---------- IdP de brinquedo ----------
+
+// idpToken faz o papel do provedor de identidade: autentica e emite o token.
+// Senha, segundo fator, passkey, recuperação de conta e bloqueio por tentativas
+// ficariam todos aqui dentro — e fora do código da plataforma.
+func idpToken(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		User   string `json:"user"`
+		Method string `json:"method"`
+	}
+	json.NewDecoder(r.Body).Decode(&in)
+	if in.User != "ana" && in.User != "bia" {
+		writeErr(w, 401, "usuário desconhecido no IdP")
+		return
+	}
+	amr := []string{"pwd", "otp"} // como a pessoa provou quem é
+	if in.Method == "passkey" {
+		amr = []string{"webauthn"} // a biometria nunca sai do aparelho; o IdP recebe uma assinatura
+	} else {
+		in.Method = "senha+2fa"
+	}
+	idpLogins.WithLabelValues(in.Method).Inc()
+	exp := time.Now().Add(8 * time.Hour)
+	writeJSON(w, 200, map[string]any{"token": signIdentity(in.User, exp), "sub": in.User, "amr": amr, "expiresAt": exp.UTC().Format(time.RFC3339)})
 }
 
 // ---------- catálogo e busca ----------
@@ -501,15 +544,21 @@ func (a *api) playback(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err.Error())
 		return
 	}
-	// A busca pode estar desatualizada; a matrícula é conferida aqui, a cada play.
-	if !enrolled {
+	// A busca pode estar desatualizada; a decisão é tomada aqui, a cada play, com
+	// dados da fonte autoritativa. Quem decide é a policy no OPA; a API aplica.
+	st := ""
+	if status != nil && prefix != nil {
+		st = *status
+	}
+	allow, reason := authorizePlay(ctx, user(r), lessonID, enrolled, st)
+	if !allow && !enrolled {
 		playbackTotal.WithLabelValues("forbidden").Inc()
-		writeErr(w, 403, "sem matrícula neste curso")
+		writeErr(w, 403, reason)
 		return
 	}
-	if assetID == nil || status == nil || *status != "READY" || prefix == nil {
+	if !allow || assetID == nil {
 		playbackTotal.WithLabelValues("not_ready").Inc()
-		writeErr(w, 409, "esta aula ainda não tem vídeo publicado")
+		writeErr(w, 409, reason)
 		return
 	}
 	asset := fmt.Sprintf("a%d", *assetID)
@@ -527,6 +576,53 @@ func (a *api) playback(w http.ResponseWriter, r *http.Request) {
 		"manifestUrl": "/vod/" + *prefix + "master.m3u8",
 		"access":      token, "expiresAt": exp.UTC().Format(time.RFC3339),
 	})
+}
+
+// authorizePlay pergunta ao OPA se este play é permitido. O input leva só fatos
+// já verificados. Se o OPA não responder, a API nega por padrão quando AUTHZ=opa
+// (fail closed) ou aplica a mesma regra em código quando AUTHZ=code.
+func authorizePlay(ctx context.Context, user string, lesson int, enrolled bool, status string) (bool, string) {
+	local := func() (bool, string) {
+		switch {
+		case !enrolled:
+			return false, "sem matrícula neste curso"
+		case status != "READY":
+			return false, "esta aula ainda não tem vídeo publicado"
+		}
+		return true, "ok"
+	}
+	if env("AUTHZ", "opa") != "opa" {
+		ok, why := local()
+		authzDecisions.WithLabelValues("code", fmt.Sprint(ok)).Inc()
+		return ok, why
+	}
+	body, _ := json.Marshal(map[string]any{"input": map[string]any{
+		"action": "play", "subject": user, "lesson": lesson,
+		"entitlement": map[string]any{"active": enrolled},
+		"resource":    map[string]any{"status": status},
+	}})
+	cctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(cctx, "POST", env("OPA_URL", "http://opa:8181")+"/v1/data/vod/playback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		authzDecisions.WithLabelValues("opa", "erro").Inc()
+		return false, "serviço de autorização indisponível: acesso negado por padrão"
+	}
+	defer res.Body.Close()
+	var out struct {
+		Result struct {
+			Allow  bool   `json:"allow"`
+			Reason string `json:"reason"`
+		} `json:"result"`
+	}
+	json.NewDecoder(res.Body).Decode(&out)
+	authzDecisions.WithLabelValues("opa", fmt.Sprint(out.Result.Allow)).Inc()
+	if out.Result.Reason == "" {
+		out.Result.Reason = "negado pela policy"
+	}
+	return out.Result.Allow, out.Result.Reason
 }
 
 // setActive troca o ponteiro da aula para outra versão já publicada (rollback).

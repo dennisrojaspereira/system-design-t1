@@ -20,10 +20,14 @@ server {
 
     location = /config.json {
         default_type application/json;
-        return 200 '{"grafana":${GRAFANA_PORT},"prom":${PROM_PORT},"abr":"${PLAYER_ABR}"}';
+        return 200 '{"grafana":${GRAFANA_PORT},"prom":${PROM_PORT},"abr":"${PLAYER_ABR}","keycloak":${KC_PORT}}';
     }
     location = /hls.min.js { alias /usr/share/nginx/vendor/hls.min.js; }
 
+    location /idp/ {      # o provedor de identidade do laboratório
+        set $up http://api:8080;
+        proxy_pass $up;
+    }
     location /api/ {
         set $up http://api:8080;
         proxy_pass $up;

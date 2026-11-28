@@ -20,6 +20,7 @@ services:
     command: api
     environment:
       <<: *env
+      AUTHZ: ${AUTHZ:-opa}   # opa = a policy decide (policy/playback.rego) | code = regra no próprio serviço
       PROGRESS_MODE: ${PROGRESS_MODE:-conditional}
       PART_SIZE_MB: ${PART_SIZE_MB:-5}
       PLAYBACK_TTL_S: ${PLAYBACK_TTL_S:-3600}
@@ -69,6 +70,42 @@ services:
     ports: ["${EDGE_PORT:-8081}:8081"]
     depends_on:
       api: { condition: service_healthy }
+
+  # ---------- autorização como policy ----------
+  # OPA avalia policy/playback.rego. A API monta o input e aplica a decisão.
+  # Edite o .rego com o lab rodando: o OPA recarrega sozinho.
+  opa:
+    image: openpolicyagent/opa:1.4.2-static
+    command: run --server --addr :8181 --watch /policy
+    volumes: ["./policy:/policy:ro"]
+    ports: ["${OPA_PORT:-8181}:8181"]
+
+  # ---------- modo demonstração ----------
+  # `make demo`: espectadores simulados mantêm o Grafana com dados durante a aula.
+  demo:
+    <<: *vod
+    command: demo
+    profiles: [demo]
+    environment:
+      DEMO_VIEWERS: ${DEMO_VIEWERS:-8}
+    depends_on:
+      api: { condition: service_healthy }
+
+  # ---------- provedor de identidade de verdade ----------
+  # `make idp`: Keycloak com o realm "cursos" (usuárias ana/ana e bia/bia).
+  # Console de administração em http://localhost:8088 (admin / admin).
+  keycloak:
+    image: keycloak/keycloak:26.0
+    profiles: [idp]
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./idp/realm-cursos.json:/opt/keycloak/data/import/realm-cursos.json:ro
+    ports: ["${KC_PORT:-8088}:8080"]
 
   # ---------- dados ----------
   pg:
@@ -127,6 +164,7 @@ services:
     environment:
       GRAFANA_PORT: ${GRAFANA_PORT:-3000}
       PROM_PORT: ${PROM_PORT:-9090}
+      KC_PORT: ${KC_PORT:-8088}
       PLAYER_ABR: ${PLAYER_ABR:-auto}   # auto | locked: o player começa travado em 1080p (Lab 6)
     volumes:
       - ./ui/html:/usr/share/nginx/html:ro   # edite o index.html e recarregue a página

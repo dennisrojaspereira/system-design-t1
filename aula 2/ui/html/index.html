@@ -71,6 +71,14 @@
   label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink3); }
   .dev { border: 1px solid var(--line); border-radius: 11px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
+  .gf { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--ink3); }
+  .gf a { font: 12.5px var(--mono); color: var(--accent); border: 1px solid #5a3a22; border-radius: 99px; padding: 3px 10px; text-decoration: none; }
+  .gf a:hover { background: rgba(255,138,61,.12); }
+  #login { position: fixed; inset: 0; background: rgba(8,13,19,.92); display: grid; place-items: center; z-index: 10; padding: 16px; }
+  #login .box { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px; width: min(560px, 100%); display: flex; flex-direction: column; gap: 16px; }
+  .who { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .who button { text-align: left; padding: 14px; background: var(--field); border: 1px solid var(--line); border-radius: 12px; color: var(--ink); font: inherit; cursor: pointer; }
+  .who button:hover { border-color: var(--accent); }
   .hint { border-left: 3px solid var(--accent); padding: 6px 12px; color: var(--ink2); font-size: 13.5px; background: rgba(255,138,61,.06); border-radius: 0 8px 8px 0; }
 </style>
 </head>
@@ -82,14 +90,34 @@
       <h1>Plataforma de cursos e vídeo sob demanda</h1>
     </div>
     <div class="row">
-      <label class="muted" for="user">Aluno</label>
-      <select id="user"><option value="ana">ana — matriculada em tudo</option><option value="bia">bia — sem o curso 1</option></select>
+      <select id="user" hidden><option value="ana">ana</option><option value="bia">bia</option></select>
+      <span class="pill ok" id="whoami">–</span>
+      <button id="logout" class="btn ghost sm">sair</button>
       <a id="grafana" class="btn ghost sm" target="_blank" rel="noopener">Grafana ↗</a>
     </div>
   </header>
 
+  <!-- Login: quem autentica é o IdP; a plataforma só recebe o token. -->
+  <div id="login" hidden>
+    <div class="box">
+      <div><p class="eyebrow">PROVEDOR DE IDENTIDADE · SIMULADO</p><h2>Antes de tudo: quem é você?</h2></div>
+      <p class="muted">Esta tela pertence ao <b>IdP</b>, não à plataforma. Senha, segundo fator, passkey e recuperação de conta moram lá. A plataforma recebe só um token assinado dizendo quem entrou — e decide o que essa pessoa pode ver.</p>
+      <div class="seg" id="loginMethod" style="align-self:flex-start">
+        <button data-m="senha+2fa" aria-pressed="true">senha + código (2FA)</button><button data-m="passkey">passkey (biometria)</button>
+      </div>
+      <div class="who">
+        <button data-user="ana"><b>ana</b><br><span class="muted">matriculada em todos os cursos</span></button>
+        <button data-user="bia"><b>bia</b><br><span class="muted">sem matrícula no curso 1</span></button>
+      </div>
+      <button id="kcLogin" class="btn ghost" hidden>Entrar com Keycloak — o IdP de verdade (ana / ana, bia / bia)</button>
+      <p class="muted" id="kcOff">Para ver um IdP de verdade: <span class="m">make idp</span> sobe o Keycloak, e esta tela ganha o botão de login por redirecionamento (OIDC).</p>
+      <div id="loginOut" class="log" hidden></div>
+    </div>
+  </div>
+
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="catalogo"><span class="n">00</span>Catálogo</button>
+    <button role="tab" data-tab="arq"><span class="n">C4</span>Arquitetura</button>
     <button role="tab" data-tab="upload"><span class="n">LAB 1</span>Upload</button>
     <button role="tab" data-tab="fila"><span class="n">LAB 2</span>Fila e workers</button>
     <button role="tab" data-tab="player"><span class="n">LAB 3·4·6</span>Player e CDN</button>
@@ -104,7 +132,11 @@
     </div>
     <p class="muted">A busca roda no Postgres (<span class="m">tsvector</span> + índice GIN, <span class="m">websearch_to_tsquery</span>). Quem decide o play é a API de playback, que confere matrícula e versão ativa na hora.</p>
     <div id="courses" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="gf" data-panels="30:Logins no IdP|31:Play autorizado × negado|32:Decisões do OPA|29:API por rota"></div>
   </section>
+
+  <!-- ================= ARQUITETURA (arq.js) ================= -->
+  <section id="tab-arq" class="panel" hidden></section>
 
   <!-- ================= UPLOAD ================= -->
   <section id="tab-upload" class="grid2" hidden>
@@ -118,6 +150,7 @@
         <button id="upSample" class="btn ghost sm">Usar vídeo de exemplo</button>
       </div>
       <p id="upFileInfo" class="muted">Nenhum arquivo escolhido.</p>
+      <div class="gf" data-panels="14:Uploads|29:API por rota"></div>
       <div class="row">
         <label class="f">Derrubar a conexão em (%)<input id="upDrop" type="number" min="0" max="99" value="60"></label>
         <label class="f">Atraso por parte (ms)<input id="upDelay" type="number" min="0" max="5000" value="400"></label>
@@ -151,6 +184,7 @@
       <div class="stat"><div class="k">Falharam</div><div class="v" id="qFailed">–</div></div>
       <div class="stat"><div class="k">Idade do mais antigo</div><div class="v" id="qAge">–</div></div>
     </div>
+    <div class="gf" data-panels="9:Fila por estado|10:Idade do mais antigo|13:Workers ocupados|11:Tentativas|12:Duração do encode|15:Publicação p50/p95"></div>
     <p class="hint">A fila entrega pelo menos uma vez. Derrube ou pause um worker no meio do encode (<span class="m">make kill-worker</span>, <span class="m">make pause-worker</span>) e veja a lease vencer, a tentativa subir e só uma publicação acontecer.</p>
     <div style="overflow:auto"><table>
       <thead><tr><th>Asset</th><th>Aula</th><th>Versão</th><th>Estado</th><th>Tentativa</th><th>Worker</th><th>Lease</th><th>Fila → READY</th><th>Último erro</th></tr></thead>
@@ -179,6 +213,7 @@
         <div class="stat"><div class="k">Versão</div><div class="v" id="hVersion">–</div></div>
       </div>
       <p id="plMsg" class="muted"></p>
+      <div class="gf" data-panels="23:Primeiro quadro|24:Bitrate|25:Travamentos|18:Hit ratio|19:TTFB HIT × MISS|20:Borda × origem|22:Idas à origem|21:Cache"></div>
     </div>
     <div class="panel">
       <span class="tag">Rede do aluno</span>
@@ -225,10 +260,12 @@
       <span class="m" id="prServer">–</span>
     </div>
     <div id="prLog" class="log">Dê play em um dos aparelhos.</div>
+    <div class="gf" data-panels="27:Checkpoints por segundo|28:Latência do checkpoint"></div>
   </section>
 </main>
 
 <script src="/hls.min.js"></script>
+<script src="/arq.js"></script>
 <script>
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -237,10 +274,62 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const fmtMs = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 const fmtBytes = (b) => b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.round(b / 1e3) + ' kB';
 
+// ---------- login no IdP ----------
+// O token fica só nesta aba. Em produção: fluxo OIDC com redirecionamento e cookie de sessão HttpOnly.
+let session = {};
+try { session = JSON.parse(sessionStorage.getItem('idp') || '{}'); } catch {}
+function paintSession() {
+  $('#login').hidden = !!session.token;
+  if (!session.token) return;
+  $('#user').value = session.sub;
+  $('#whoami').textContent = `${session.sub} · ${session.amr.join('+')}`;
+}
+$('#loginMethod').addEventListener('click', (e) => e.target.dataset.m && $$('#loginMethod button').forEach((b) => b.setAttribute('aria-pressed', b === e.target)));
+$('.who').addEventListener('click', async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const method = $('#loginMethod button[aria-pressed="true"]').dataset.m;
+  const res = await fetch('/idp/token', { method: 'POST', body: JSON.stringify({ user: b.dataset.user, method }) });
+  session = await res.json();
+  $('#loginOut').hidden = false;
+  $('#loginOut').innerHTML = `<b>POST /idp/token</b> → o IdP autenticou (${method}) e devolveu:\n{ sub: "${session.sub}", amr: ${JSON.stringify(session.amr)}, token: "${session.token.slice(0, 26)}…" }\n<span class="g">A plataforma nunca viu a senha nem a digital.</span>`;
+  try { sessionStorage.setItem('idp', JSON.stringify(session)); } catch {}
+  setTimeout(() => { paintSession(); loadCourses(); refreshServerProgress(); }, 1600);
+});
+$('#logout').addEventListener('click', () => { session = {}; try { sessionStorage.removeItem('idp'); } catch {} $('#loginOut').hidden = true; paintSession(); });
+
+// ---------- login por redirecionamento no Keycloak: OIDC, authorization code + PKCE ----------
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function kcSetup(realm) {
+  const redirect = location.origin + '/';
+  const code = new URLSearchParams(location.search).get('code');
+  if (code) { // voltamos do IdP com um código de uso único: trocamos pelo token
+    history.replaceState(null, '', '/');
+    const res = await fetch(realm + '/protocol/openid-connect/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'authorization_code', client_id: 'plataforma', code, redirect_uri: redirect, code_verifier: sessionStorage.getItem('pkce') || '' }) });
+    const tok = await res.json();
+    if (tok.access_token) {
+      const claims = JSON.parse(atob(tok.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      session = { token: tok.access_token, sub: claims.preferred_username, amr: ['keycloak'] };
+      try { sessionStorage.setItem('idp', JSON.stringify(session)); } catch {}
+      paintSession(); loadCourses();
+    }
+    return;
+  }
+  try { if (!(await fetch(realm + '/.well-known/openid-configuration')).ok) return; } catch { return; } // Keycloak desligado
+  $('#kcLogin').hidden = false; $('#kcOff').hidden = true;
+  $('#kcLogin').onclick = async () => {
+    const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    sessionStorage.setItem('pkce', verifier);
+    // S256 precisa de contexto seguro (https ou localhost); por IP em http o lab cai para "plain".
+    const s256 = !!crypto.subtle, challenge = s256 ? b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))) : verifier;
+    location.href = realm + '/protocol/openid-connect/auth?' + new URLSearchParams({ client_id: 'plataforma', response_type: 'code', scope: 'openid', redirect_uri: redirect, code_challenge: challenge, code_challenge_method: s256 ? 'S256' : 'plain' });
+  };
+}
+
 async function api(method, path, body) {
   const res = await fetch(path, {
     method, credentials: 'same-origin',
-    headers: { 'X-User': $('#user').value, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { Authorization: 'Bearer ' + (session.token || ''), ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = res.status === 204 ? null : await res.json().catch(() => null);
@@ -259,13 +348,18 @@ function showTab(name) {
   $$('main > section').forEach((s) => (s.hidden = s.id !== 'tab-' + name));
   history.replaceState(null, '', '#' + name);
   if (name === 'catalogo') loadCourses();
+  if (name === 'arq') renderArq();
   if (name === 'fila') loadPipeline();
   if (name === 'player') loadEdge();
   if (name === 'progresso') refreshServerProgress();
 }
 tabs.forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 fetch('/config.json').then((r) => r.json()).then((c) => {
-  $('#grafana').href = `http://${location.hostname}:${c.grafana}`;
+  const g = `http://${location.hostname}:${c.grafana}`;
+  $('#grafana').href = g;
+  // Atalhos: cada aba aponta para os painéis que provam o que ela mostra.
+  for (const box of $$('.gf')) box.innerHTML = 'No Grafana ↗ ' + box.dataset.panels.split('|').map((p) => { const [id, name] = p.split(':'); return `<a target="_blank" rel="noopener" href="${g}/d/vod?viewPanel=${id}&from=now-15m&to=now&refresh=5s">${name}</a>`; }).join('');
+  kcSetup(`http://${location.hostname}:${c.keycloak}/realms/cursos`);
   if (c.abr === 'locked') $$('#abrSeg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.abr === '1080'));
 }).catch(() => {});
 $('#user').addEventListener('change', () => { loadCourses(); refreshServerProgress(); });
@@ -490,8 +584,8 @@ function applyAbr() {
   if (!pl.hls) return;
   const lock = $('#abrSeg button[aria-pressed="true"]').dataset.abr === '1080';
   // loadLevel vale para os próximos segmentos e não descarta o que já está no buffer.
-  if (!lock) pl.hls.loadLevel = -1;
-  else pl.hls.loadLevel = pl.started ? pl.hls.levels.length - 1 : 0;
+  if (!lock) { if (!pl.hls.autoLevelEnabled) pl.hls.loadLevel = -1; return; }
+  pl.hls.loadLevel = pl.started ? pl.hls.levels.length - 1 : 0;
 }
 $('#abrSeg').addEventListener('click', (e) => { if (!e.target.dataset.abr) return; $$('#abrSeg button').forEach((b) => b.setAttribute('aria-pressed', b === e.target)); applyAbr(); });
 $('#plPlay').addEventListener('click', play);
@@ -582,6 +676,7 @@ async function refreshServerProgress() {
 $('#prLesson').addEventListener('change', refreshServerProgress);
 
 // ---------- início ----------
+paintSession();
 loadCourses().then(() => showTab(location.hash.slice(1) || 'catalogo'));
 </script>
 </body>
